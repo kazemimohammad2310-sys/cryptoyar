@@ -1,0 +1,211 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { KeyRound, Lock, RefreshCw, ShieldCheck } from 'lucide-react'
+import { getAdminToken, postJson, setAdminToken, usePolling } from '@/components/cryptoyar/usePolling'
+import { ErrorNote, FEATURE_FA, SectionTitle, SkeletonBlock } from '@/components/cryptoyar/kit'
+import { faNum } from '@/lib/fa'
+import type { SettingsResp } from '@/components/cryptoyar/types'
+
+export function SettingsTab() {
+  const settings = usePolling<SettingsResp>('/api/settings', 120_000)
+  const [token, setTokenInput] = useState('')
+  const [tokenState, setTokenState] = useState<'idle' | 'checking' | 'ok' | 'bad'>('idle')
+  const [tokenMsg, setTokenMsg] = useState('')
+  const [loadedFromStorage, setLoadedFromStorage] = useState(false)
+
+  // read the saved token only after mount (hydration-safe)
+  useEffect(() => {
+    const saved = getAdminToken()
+    if (saved) setTokenInput(saved)
+    setLoadedFromStorage(true)
+  }, [])
+
+  async function saveToken(): Promise<void> {
+    setTokenState('checking')
+    setTokenMsg('')
+    try {
+      const t = token.trim()
+      if (!t) {
+        setAdminToken('')
+        setTokenState('bad')
+        setTokenMsg('توکن خالی است — اگر می‌خواهید قفل برداشته شود این قسمت را خالی بگذارید و دوباره ذخیره کنید.')
+        return
+      }
+      setAdminToken(t)
+      await postJson<{ ok: boolean }>('/api/settings', {})
+      setTokenState('ok')
+      setTokenMsg('توکن تأیید شد و روی این دستگاه ذخیره شد (localStorage).')
+    } catch (e) {
+      setTokenState('bad')
+      setTokenMsg(e instanceof Error ? e.message : 'توکن نامعتبر است')
+    }
+  }
+
+  const d = settings.data
+
+  return (
+    <div className="space-y-5">
+      {/* mode */}
+      <section>
+        <SectionTitle icon={<ShieldCheck className="h-4 w-4" />}>حالت معامله</SectionTitle>
+        {settings.loading ? (
+          <SkeletonBlock className="h-20" />
+        ) : d ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4">
+            {d.mode === 'paper' ? (
+              <span className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-sm font-bold text-primary">
+                حالت شبیه‌سازی — پول واقعی درگیر نیست
+              </span>
+            ) : (
+              <span className="flex items-center gap-2 rounded-lg border border-[color:var(--cy-down)]/50 bg-[color:var(--cy-down)]/10 px-3 py-1.5 text-sm font-bold cy-down">
+                <Lock className="h-4 w-4" /> حالت واقعی — قفل
+              </span>
+            )}
+            <p className="text-xs text-muted-foreground">
+              معاملات واقعی فقط در فاز ۲ و با تأیید صریح شما باز می‌شود؛ تا آن زمان صندوق فقط با سرمایهٔ مجازی
+              می‌چرخد.
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      {/* admin token */}
+      <section>
+        <SectionTitle icon={<KeyRound className="h-4 w-4" />}>قفل توکن مدیریت (POST)</SectionTitle>
+        <div className="space-y-3 rounded-xl border bg-card p-4">
+          <p className="text-xs leading-6 text-muted-foreground">
+            عملیات نوشتن (ثبت سیگنال در صندوق، بستن پوزیشن) به توکن مدیریت نیاز دارد. این توکن فقط در همین مرورگر
+            ذخیره می‌شود — اگر از گوشی یا دستگاه دیگری وارد می‌شوید، یک‌بار همان توکن را آنجا هم وارد کنید.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => {
+                setTokenInput(e.target.value)
+                setTokenState('idle')
+              }}
+              placeholder="توکن مدیریت را اینجا بچسبانید…"
+              dir="ltr"
+              className="min-w-56 flex-1 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+            />
+            <button
+              type="button"
+              onClick={() => void saveToken()}
+              disabled={tokenState === 'checking' || !loadedFromStorage}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {tokenState === 'checking' ? 'در حال بررسی…' : 'ذخیره'}
+            </button>
+          </div>
+          {tokenMsg ? (
+            <p className={`rounded-lg px-3 py-2 text-xs ${tokenState === 'ok' ? 'bg-[color:var(--cy-up)]/10 cy-up' : 'bg-[color:var(--cy-down)]/10 cy-down'}`}>
+              {tokenMsg}
+            </p>
+          ) : null}
+          <p className="text-[11px] text-muted-foreground">
+            {d?.adminLockEnabled
+              ? 'وضعیت: قفل فعال است — توکن از متغیر محیطی ADMIN_TOKEN سرور خوانده می‌شود.'
+              : 'وضعیت: سرور بدون توکن راه‌اندازی شده (فقط محلی).'}
+          </p>
+        </div>
+      </section>
+
+      {/* keys */}
+      <section>
+        <SectionTitle>وضعیت کلیدها (فقط تنظیم‌شده/تنظیم‌نشده — مقدار هرگز نمایش داده نمی‌شود)</SectionTitle>
+        {settings.loading ? (
+          <SkeletonBlock className="h-24" />
+        ) : d ? (
+          <div className="grid gap-2 rounded-xl border bg-card p-4 sm:grid-cols-2">
+            <KeyRow label="CoinMarketCap (CMC_API_KEY)" ok={d.keys.cmc} hint="رتبه‌بندی و سنجه‌های کلان بازار" />
+            <KeyRow label="Toobit — کلید (TOOBIT_API_KEY)" ok={d.keys.toobitKey} hint="فاز ۲ — معاملهٔ واقعی" />
+            <KeyRow label="Toobit — رمز (TOOBIT_API_SECRET)" ok={d.keys.toobitSecret} hint="فاز ۲ — معاملهٔ واقعی" />
+            <KeyRow label="توکن مدیریت (ADMIN_TOKEN)" ok={d.keys.adminToken} hint="قفل عملیات نوشتن" />
+          </div>
+        ) : null}
+      </section>
+
+      {/* risk limits */}
+      <section>
+        <SectionTitle>حدود ریسک (سمت سرور اعمال می‌شود)</SectionTitle>
+        {settings.loading ? (
+          <SkeletonBlock className="h-24" />
+        ) : d ? (
+          <div className="grid grid-cols-2 gap-3 rounded-xl border bg-card p-4 text-sm lg:grid-cols-4">
+            <RiskRow label="سرمایهٔ پایه" value={`${faNum(d.risk.equity, 0)} USDT`} />
+            <RiskRow label="حداکثر پوزیشن همزمان" value={faNum(d.risk.maxPositions, 0)} />
+            <RiskRow label="ریسک هر معامله" value={`${faNum(d.risk.riskPerTradePct, 0)}٪`} />
+            <RiskRow label="سقف هر پوزیشن" value={`${faNum(d.risk.maxPositionPct, 0)}٪`} />
+            <RiskRow label="مدار قطع روزانه" value={`${faNum(d.risk.dailyDrawdownHaltPct, 0)}٪ افت`} />
+          </div>
+        ) : null}
+      </section>
+
+      {/* brain weights (read-only summary) */}
+      {d ? (
+        <section>
+          <SectionTitle>وزن‌های مغز (خلاصه — جزئیات در تب مغز)</SectionTitle>
+          <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-4 text-xs">
+            {d.weights.map((w) => (
+              <span key={w.key} className="rounded-md bg-secondary px-2 py-1">
+                {FEATURE_FA[w.key] ?? w.key}: <span className="font-bold cy-num">{faNum(w.weight, 1)}</span>
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Toobit phase 2 */}
+      <section>
+        <SectionTitle>اتصال صرافی Toobit</SectionTitle>
+        <div className="rounded-xl border border-dashed bg-card p-4 text-sm">
+          <p className="font-bold">اتصال فاز ۲ — آمادهٔ فعال‌سازی</p>
+          <p className="mt-2 text-xs leading-6 text-muted-foreground">
+            راهنمای امنیتی کلید: کلید باید فقط مجوز معامله داشته باشد، بدون مجوز برداشت وجه، و ترجیحاً با IP
+            whitelist. تا فعال‌سازی فاز ۲، هیچ درخواستی به صرافی ارسال نمی‌شود.
+          </p>
+        </div>
+      </section>
+
+      {settings.error ? <ErrorNote message={settings.error} onRetry={settings.refresh} /> : null}
+
+      <div className="flex items-center justify-between rounded-xl border bg-card px-4 py-3 text-xs text-muted-foreground">
+        <span>نسخهٔ ابری: چرخهٔ کامل هر ۱۵ دقیقه روی GitHub Actions — بکاپ دیتابیس در خود مخزن.</span>
+        <button
+          type="button"
+          onClick={settings.refresh}
+          className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-muted"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> به‌روزرسانی
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function KeyRow({ label, ok, hint }: { label: string; ok: boolean; hint: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
+      <div>
+        <div className="text-sm font-bold" dir="auto">
+          {label}
+        </div>
+        <div className="text-[11px] text-muted-foreground">{hint}</div>
+      </div>
+      <span className={`whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-bold ${ok ? 'bg-[color:var(--cy-up)]/15 cy-up' : 'bg-muted text-muted-foreground'}`}>
+        {ok ? 'کلید تنظیم شده' : 'کلید ثبت نشده'}
+      </span>
+    </div>
+  )
+}
+
+function RiskRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-muted/40 px-3 py-2">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="mt-0.5 font-bold cy-num">{value}</div>
+    </div>
+  )
+}

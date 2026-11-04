@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Vazirmatn (local — no external CDN, works behind any firewall) ─── */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-up: var(--cy-up);
+  --color-down: var(--cy-down);
+  --color-gold: var(--cy-gold);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ─── CryptoYar terminal palette (always dark, like Binance) ─── */
+:root,
+.dark {
+  --radius: 0.75rem;
+  --background: #0b0e11;
+  --foreground: #eaecef;
+  --card: #12161c;
+  --card-foreground: #eaecef;
+  --popover: #161b22;
+  --popover-foreground: #eaecef;
+  --primary: #f0b90b;
+  --primary-foreground: #1c220c;
+  --secondary: #1c222b;
+  --secondary-foreground: #b7bdc6;
+  --muted: #1a1f27;
+  --muted-foreground: #848e9c;
+  --accent: #1c222b;
+  --accent-foreground: #eaecef;
+  --destructive: #f6465d;
+  --border: #232a33;
+  --input: #232a33;
+  --ring: #f0b90b;
+  --cy-up: #0ecb81;
+  --cy-down: #f6465d;
+  --cy-gold: #f0b90b;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* up/down helpers (matches static GitHub Pages report) */
+.cy-up {
+  color: var(--cy-up);
+}
+.cy-down {
+  color: var(--cy-down);
+}
+
+/* numbers keep latin-digit-friendly spacing inside RTL text */
+.cy-num {
+  font-feature-settings: "tnum";
+  letter-spacing: 0;
+}
+
+/* custom scrollbars — dark terminal style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2b3541;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4655;
+}
+
+/* subtle pulse for the live health dot */
+@keyframes cy-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.cy-live {
+  animation: cy-pulse 2s ease-in-out infinite;
+}
+
+/* Persian date/time row should never break mid-phrase */
+.cy-nowrap {
+  white-space: nowrap;
+}

@@ -5,3 +5,10 @@ db/*.db-wal
 db/*.db-shm
 db/*.db-journal
 test-*.db*
+.next/
+.env
+next-env.d.ts
+*.tsbuildinfo
+.zscripts/
+Caddyfile
+dev.log
