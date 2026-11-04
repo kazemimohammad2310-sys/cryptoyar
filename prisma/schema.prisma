@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── CryptoYar schema (per master prompt §3, + first-touch fields) ───
+
+model Coin {
+  id        Int      @id @default(autoincrement())
+  symbol    String   @unique // e.g. BTCUSDT
+  base      String   @default("") // e.g. BTC
+  name      String   @default("") // e.g. Bitcoin (from CMC when available)
+  rank      Int      @default(999)
+  marketCap Float    @default(0)
+  cmcId     Int?
+  updatedAt DateTime @updatedAt
+}
+
+model Candle {
+  id       Int      @id @default(autoincrement())
+  symbol   String
+  interval String // 15m | 1h | 4h | 1d
+  ts       DateTime
+  open     Float
+  high     Float
+  low      Float
+  close    Float
+  volume   Float
+
+  @@unique([symbol, interval, ts])
+  @@index([symbol, interval])
+}
+
+model TickerSnapshot {
+  id        Int      @id @default(autoincrement())
+  symbol    String
+  price     Float
+  change24h Float
+  volume24h Float
+  high24h   Float
+  low24h    Float
+  ts        DateTime @default(now())
+
+  @@index([symbol, ts])
+}
+
+model FundingSnapshot {
+  id           Int      @id @default(autoincrement())
+  symbol       String
+  fundingRate  Float
+  openInterest Float?
+  markPrice    Float?
+  ts           DateTime @default(now())
+
+  @@index([symbol, ts])
+}
+
+model BrainSample {
+  id           Int       @id @default(autoincrement())
+  symbol       String
+  strategy     String?
+  side         String // long | short
+  entryPrice   Float
+  stopLoss     Float?
+  takeProfit   Float?
+  featuresJson String
+  horizonHours Int // 24 | 72
+  predicted    String // up | down
+  outcome      String? // win | loss | flat
+  pnlPct       Float? // raw price-move pnl at horizon
+  ftOutcome    String? // tp | sl | timeout  (first-touch, matches fund behaviour)
+  ftPnlPct     Float? // pnl if SL/TP touched first
+  createdAt    DateTime  @default(now())
+  evaluatedAt  DateTime?
+
+  @@index([symbol, createdAt])
+  @@index([evaluatedAt])
+}
+
+model Signal {
+  id           Int      @id @default(autoincrement())
+  symbol       String
+  side         String // long | short
+  score        Float
+  strategy     String
+  entryPrice   Float
+  stopLoss     Float
+  takeProfit   Float
+  featuresJson String
+  reasonFa     String
+  status       String   @default("open") // open | registered | expired
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model FundPosition {
+  id             Int       @id @default(autoincrement())
+  symbol         String
+  side           String // long | short
+  qty            Float
+  entryPrice     Float
+  markPrice      Float
+  stopLoss       Float
+  takeProfit     Float
+  strategy       String    @default("manual")
+  reasonFa       String    @default("")
+  sourceSignalId Int?
+  status         String    @default("open") // open | closed
+  openedAt       DateTime  @default(now())
+  closedAt       DateTime?
+  closePrice     Float?
+  pnlUsdt        Float?
+  pnlPct         Float?
+
+  @@index([status])
+}
+
+model FundOrder {
+  id        Int      @id @default(autoincrement())
+  kind      String // open | close
+  symbol    String
+  side      String
+  qty       Float
+  price     Float
+  reasonFa  String
+  status    String   @default("filled")
+  createdAt DateTime @default(now())
+}
+
+model EquityPoint {
+  id         Int      @id @default(autoincrement())
+  equityUsdt Float
+  ts         DateTime @default(now())
+
+  @@index([ts])
+}
+
+model JobLog {
+  id         Int       @id @default(autoincrement())
+  job        String
+  startedAt  DateTime
+  finishedAt DateTime?
+  ok         Boolean
+  error      String?
+  detail     String?
+
+  @@index([job, startedAt])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
