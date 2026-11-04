@@ -5,10 +5,7 @@ name: cycle
 
 on:
   schedule:
-    # Off-peak minutes (:07 :23 :38 :53) — GitHub's cron cluster is heavily
-    # congested on :00/:15/:30/:45 and drops runs there (documented platform
-    # behaviour). Irregular minutes are far more reliable. Still ~every 15 min.
-    - cron: '7,23,38,53 * * * *'
+    - cron: '*/15 * * * *' # every 15 min (GitHub cron is best-effort; small delays are normal)
   workflow_dispatch: {} # manual run button
 
 permissions:
