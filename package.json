@@ -1,0 +1,16 @@
+{
+  "name": "cryptoyar-free",
+  "private": true,
+  "scripts": {
+    "cycle": "bun scripts/gh-cycle.ts",
+    "report": "bun scripts/gh-report.ts",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "prisma": "^6.11.1"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
