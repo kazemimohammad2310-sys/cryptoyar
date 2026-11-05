@@ -73,6 +73,48 @@ function dbSizeMB(): number | null {
 export async function runSelfHeal(): Promise<string> {
   const actions: string[] = []
 
+  // 0. DB integrity FIRST — on a corrupt DB every later query would throw and
+  // self-heal would never reach its own repairs. db-doctor.py rebuilds a clean
+  // file from all readable rows (meaningful data survives, hot caches
+  // repopulate from the API). Cloud cycles are fresh processes → repaired file
+  // is picked up immediately.
+  let dbWasRepaired = false
+  try {
+    const qc = await db.$queryRawUnsafe<{ quick_check: string }[]>('PRAGMA quick_check(1);')
+    const verdict0 = Array.isArray(qc) && qc[0] ? String(qc[0].quick_check) : 'ok'
+    if (verdict0 !== 'ok') {
+      const p = dbFilePath()
+      if (p) {
+        try {
+          const r = await execFileP('python3', ['scripts/db-doctor.py', p], {
+            cwd: process.cwd(),
+            timeout: 240_000,
+            maxBuffer: 16 * 1024 * 1024,
+          })
+          const out = r.stdout.trim().split('\n').pop() ?? ''
+          if (out.startsWith('REPAIR OK')) {
+            dbWasRepaired = true
+            actions.push('دیتابیس خراب شناسایی و به‌صورت خودکار بازسازی شد — داده‌های مهم سالم منتقل شدند')
+          } else {
+            actions.push(`خرابی دیتابیس شناسایی شد ولی ترمیم خودکار کامل نشد (${out.slice(0, 60)})`)
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message.slice(0, 60) : 'خطا'
+          actions.push(`خرابی دیتابیس شناسایی شد — اجرای ترمیم‌گر ناموفق (${msg})`)
+        }
+      }
+    }
+  } catch {
+    /* even the probe failing must not kill self-heal */
+  }
+  if (dbWasRepaired) {
+    await setSetting(
+      'healSnapshot',
+      JSON.stringify({ at: Date.now(), totalHeals: 1, recentActions: actions.slice(0, 8), sickNow: [] }),
+    )
+    return `ترمیم خودکار: ${actions.join(' | ')}`
+  }
+
   // 1a. detect sick jobs (N consecutive failures)
   const sick: { job: string; err: string }[] = []
   for (const job of PIPELINE_JOBS) {
