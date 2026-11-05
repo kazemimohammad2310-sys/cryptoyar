@@ -1,0 +1,1934 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>کریپتویار — داشبورد رایگان</title>
+<meta name="theme-color" content="#0d1220">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="کریپتویار">
+<style>
+  @font-face { font-family:'Vazirmatn'; src:url('fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight:400; }
+  @font-face { font-family:'Vazirmatn'; src:url('fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight:700; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#0b0e11; color:#eaecef; font-family:'Vazirmatn',Tahoma,sans-serif; }
+  main { max-width:960px; margin:0 auto; padding:12px 16px 24px; }
+  header { padding:8px 0 10px; }
+  h1 { font-size:18px; margin:0; color:#f0b90b; }
+  .sub { font-size:11px; color:#848e9c; }
+  .tabs { position:sticky; top:0; background:#0b0e11; display:flex; gap:5px; overflow-x:auto; padding:8px 0; border-bottom:1px solid #1e242c; z-index:5; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tabbtn { flex:1 0 auto; background:#12161c; color:#848e9c; border:1px solid #1e242c; border-radius:10px; padding:8px 12px; font-family:inherit; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .tabbtn.on { background:rgba(240,185,11,.14); color:#f0b90b; border-color:rgba(240,185,11,.4); font-weight:700; }
+  section[data-tab] { padding-top:12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+  .card { background:#12161c; border:1px solid #1e242c; border-radius:12px; padding:14px; margin-bottom:12px; }
+  .card h2 { font-size:13px; margin:0 0 10px; color:#eaecef; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:12px; }
+  .kpi { background:#12161c; border:1px solid #1e242c; border-radius:12px; padding:12px; }
+  .kpi b { display:block; font-size:17px; margin-top:4px; }
+  .kpi span { font-size:11px; color:#848e9c; }
+  .up { color:#0ecb81; } .down { color:#f6465d; } .warn { color:#f0b90b; }
+  .twrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  td, th { padding:7px 6px; border-bottom:1px solid #1e242c; text-align:right; white-space:nowrap; }
+  td:last-child { white-space:normal; }
+  th { color:#848e9c; font-weight:400; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; border:1px solid #1e242c; color:#848e9c; }
+  .pill.reg { border-color:rgba(14,203,129,.5); color:#0ecb81; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; white-space:nowrap; }
+  .badge.strong { background:rgba(14,203,129,.14); color:#0ecb81; }
+  .badge.mid { background:rgba(240,185,11,.14); color:#f0b90b; }
+  .badge.weak { background:rgba(246,70,93,.14); color:#f6465d; }
+  .rankchip { display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:22px; padding:0 4px; border-radius:7px; background:#1e242c; color:#f0b90b; font-size:10px; font-weight:700; }
+  details.coin { border-bottom:1px solid #1e242c; }
+  details.coin:last-child { border-bottom:none; }
+  details.coin summary { cursor:pointer; list-style:none; padding:10px 0; }
+  details.coin summary::-webkit-details-marker { display:none; }
+  details.coin summary::after { content:'⌄'; float:left; color:#848e9c; font-size:13px; }
+  details.coin[open] summary::after { content:'⌃'; }
+  details.coin[open] summary { border-bottom:1px dashed #1e242c; margin-bottom:8px; }
+  .cdetail { padding:2px 0 12px; }
+  .cmetrics { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:6px 0 9px; }
+  .cmet { background:#0b0e11; border:1px solid #1e242c; border-radius:8px; padding:7px 9px; }
+  .cmet span { display:block; color:#848e9c; font-size:10px; margin-bottom:2px; }
+  .cmet b { font-size:11px; }
+  .reason { font-size:11px; color:#848e9c; line-height:1.8; }
+  svg.spark { width:100%; height:60px; }
+  .bar { height:6px; background:#1e242c; border-radius:99px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:#f0b90b; }
+  footer { text-align:center; color:#848e9c; font-size:10px; padding:16px 0; line-height:1.8; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>کریپتویار — شکار بهترین کوین‌ها در بهترین زمان</h1>
+    <div class="sub">به‌روزرسانی: ۱۴۰۵/۸/۱۴, ۱۲:۴۷ (تهران) · هر ۱۵ دقیقه توسط GitHub Actions</div>
+  </header>
+
+  <nav class="tabs" aria-label="بخش‌های داشبورد">
+    <button type="button" class="tabbtn" data-go="dashboard">داشبورد</button>
+    <button type="button" class="tabbtn" data-go="radar">رادار فرصت‌ها</button>
+    <button type="button" class="tabbtn" data-go="coins">ارزها</button>
+    <button type="button" class="tabbtn" data-go="fund">صندوق شبیه‌ساز</button>
+    <button type="button" class="tabbtn" data-go="brain">مغز یادگیرنده</button>
+    <button type="button" class="tabbtn" data-go="nightshift">شیفت‌شب</button>
+    <button type="button" class="tabbtn" data-go="help">راهنما</button>
+  </nav>
+
+  <section data-tab="dashboard">
+    <div class="kpis">
+      <div class="kpi"><span>دارایی صندوق (شبیه‌سازی)</span><b>۹٬۹۸۹٫۰۵ <span style="font-size:11px">USDT</span></b></div>
+      <div class="kpi"><span>سود/زیان باز</span><b class="down">‎−۱۱٫۳ USDT</b></div>
+      <div class="kpi"><span>پوزیشن باز</span><b>۵</b></div>
+      <div class="kpi"><span>کوین‌های تحت پوشش</span><b>۳۸</b></div>
+      <div class="kpi"><span>کندل‌های ذخیره‌شده</span><b>۸۱٬۲۳۵</b></div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h2>منحنی سرمایه (۴۸ نقطهٔ اخیر)</h2>
+        <svg class="spark" viewBox="0 0 300 60"><svg viewBox="0 0 300 60" preserveAspectRatio="none"><polyline points="0,6.325840148845813 13.043478260869565,6.325840148845813 26.08695652173913,6.325840148845813 39.130434782608695,6.325840148845813 52.17391304347826,6 65.21739130434783,6 78.26086956521739,6 91.30434782608697,6 104.34782608695652,6 117.3913043478261,6 130.43478260869566,6 143.47826086956522,6 156.52173913043478,6 169.56521739130434,54.243030363811386 182.60869565217394,54.243030363811386 195.65217391304347,42.83624919373622 208.69565217391303,40.258691201628565 221.7391304347826,37.45702096702607 234.7826086956522,42.51821185202375 247.82608695652175,46.805816711061254 260.8695652173913,54.01928556225807 273.9130434782609,53.59738014002943 286.95652173913044,56.252780382048094 300,58" fill="none" stroke="#f6465d" stroke-width="2"/></svg></svg>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <span class="pill">Binance اسپات: <b class="up">سالم</b></span>
+        <span class="pill">فیوچرز: <b class="down">قطع</b></span>
+        <span class="pill">CMC: <b class="up">سالم</b></span>
+        <span class="pill">ترس‌وطمع: <b class="down">قطع</b></span>
+      </div>
+      </div>
+      <div class="card">
+        <h2>وظایف چرخه (آخرین اجرا)</h2>
+        <table><tr><th>وظیفه</th><th>وضعیت</th><th>زمان</th></tr>
+        <tr>
+          <td>تیکرها</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۴</td>
+        </tr><tr>
+          <td>کندل‌ها</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۴</td>
+        </tr><tr>
+          <td>رتبه‌بندی CMC</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>فاندینگ/OI</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>اسکن رادار</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>ارزش‌گذاری صندوق</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>ربات معامله‌گر</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>خودترمیمی</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>خودبهینه‌سازی</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>خودبروزرسانی</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>آموزش مغز</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>نمودار سرمایه</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>پایش سلامت</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>خودآزمایی مغز</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>پاک‌سازی داده</td>
+          <td class="up">موفق</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2>لایهٔ خودکار — سامانه خودش را بروزرسانی، ترمیم و بهینه می‌کند</h2>
+        <div class="reason">
+          <b>خودبروزرسانی:</b> نسخهٔ فعال <b>e599f06</b> — data: cycle 2026-11-05T07:57:04Z · ۱ بروزرسانی و ۲ همگام‌سازی خودکار
+        </div>
+        <div class="reason" style="margin-top:6px">
+          <b>خودترمیمی:</b> ۰ اقدام ترمیم تا امروز — فعلاً نیازی به ترمیم نبوده
+        </div>
+        <div class="reason" style="margin-top:6px">
+          <b>خودبهینه‌سازی و رشد:</b> نمونهٔ کافی برای تنظیم خودکار نیست (۰ از ۱۰ معاملهٔ ربات در ۱۴ روز) · حجم دیتابیس ۱۱٫۴ مگابایت
+        </div>
+      </div>
+    </div></section>
+  <section data-tab="radar" hidden><div class="card">
+        <div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>SKY/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge weak">بنیاد ضعیف ۳۵</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:57.19587584318634%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۷</b>
+        </div>
+        <div class="reason">ورود: ۰٫۰۶۷۱ · حد ضرر: <span class="down">۰٫۰۶۵۹</span> · حد سود: <span class="up">۰٫۰۶۸۹</span> · استراتژی: trend_following</div>
+        <div class="reason">روندیابی — تقاطع EMA20/EMA50 در ۵ کندل اخیر با تأیید شیب — ورود خرید (امتیاز ۵۷) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۰ (مومنتوم صعودی)، روند ۴ساعته صعودی</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱۱:۴۳</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>NVDAB/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:3%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">‎−۴۰</b>
+        </div>
+        <div class="reason">ورود: ۱۹۸٫۶۴ · حد ضرر: <span class="down">۱۹۵٫۸۴۶۸</span> · حد سود: <span class="up">۲۰۲٫۸۲۹۸</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۳۰ در اشباع فروش با حفظ حمایت — خرید خلاف‌روند (امتیاز ‎−۴۰) — EMA20 زیر EMA50 — روند نزولی، RSI ۳۰ (فشار نزولی)، بازگشت ۲۴س بیت‌کوین ۳٫۳٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱۰:۴۳</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>MUB/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:3%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">‎−۴۱</b>
+        </div>
+        <div class="reason">ورود: ۷۷۹٫۳۵ · حد ضرر: <span class="down">۷۵۹٫۲۱۲۵</span> · حد سود: <span class="up">۸۰۹٫۵۵۶۳</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۲۵ در اشباع فروش با حفظ حمایت — خرید خلاف‌روند (امتیاز ‎−۴۱) — EMA20 زیر EMA50 — روند نزولی، RSI ۲۵ (فشار نزولی)، MACD منفی</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱۰:۴۳</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>QQQB/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:3%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">‎−۴۰</b>
+        </div>
+        <div class="reason">ورود: ۶۸۳٫۳۹ · حد ضرر: <span class="down">۶۸۷٫۴۹۰۳</span> · حد سود: <span class="up">۶۷۷٫۲۳۹۵</span> · استراتژی: trend_following</div>
+        <div class="reason">روندیابی — تقاطع EMA20/EMA50 در ۵ کندل اخیر با تأیید شیب — ورود فروش (امتیاز ‎−۴۰) — EMA20 زیر EMA50 — روند نزولی، RSI ۱۸ (فشار نزولی)، بازگشت ۲۴س بیت‌کوین ۳٫۴٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۹:۳۳</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>XAUT/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge mid">بنیاد متوسط ۶۲</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:41.371403773518%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۴۱</b>
+        </div>
+        <div class="reason">ورود: ۴٬۰۹۴٫۸۵ · حد ضرر: <span class="down">۴٬۰۷۰٫۲۸۰۹</span> · حد سود: <span class="up">۴٬۱۳۱٫۷۰۳۶</span> · استراتژی: momentum_breakout</div>
+        <div class="reason">شکست مومنتوم — شکست سقف ۷روزه با حجم ۲٫۷ انحراف معیار بالاتر از میانگین (امتیاز ۴۱) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۳ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۳٫۴٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۹:۱۸</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>LSK/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">باز</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:65.15368109868136%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۶۵</b>
+        </div>
+        <div class="reason">ورود: ۰٫۲۱۰۶ · حد ضرر: <span class="down">۰٫۱۹۷۲</span> · حد سود: <span class="up">۰٫۲۳۰۸</span> · استراتژی: funding_anomaly</div>
+        <div class="reason">ناهنجاری فاندینگ — فاندینگ ‎−۰٫۷۸۸٪ منفی — معامله خلاف جهت ازدحام (خرید) (امتیاز ۶۵) — EMA20 بالای EMA50 — روند صعودی، فاندینگ منفی (‎−۰٫۷۸۸٪)، بازگشت ۲۴س بیت‌کوین ۳٫۴٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۹:۱۸</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>BEAMX/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:56.59470674010797%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۷</b>
+        </div>
+        <div class="reason">ورود: ۰٫۰۰۴۸ · حد ضرر: <span class="down">۰٫۰۰۴۶</span> · حد سود: <span class="up">۰٫۰۰۵۱</span> · استراتژی: trend_following</div>
+        <div class="reason">روندیابی — تقاطع EMA20/EMA50 در ۵ کندل اخیر با تأیید شیب — ورود خرید (امتیاز ۵۷) — EMA20 بالای EMA50 — روند صعودی، RSI ۶۵ (مومنتوم صعودی)، MACD مثبت</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۷:۲۳</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>LSK/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill reg">ثبت‌شده در صندوق</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:77.62144714214547%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۷۸</b>
+        </div>
+        <div class="reason">ورود: ۰٫۲۲۱۴ · حد ضرر: <span class="down">۰٫۲۰۸۴</span> · حد سود: <span class="up">۰٫۲۴۱</span> · استراتژی: funding_anomaly</div>
+        <div class="reason">ناهنجاری فاندینگ — فاندینگ ‎−۰٫۲۷۴٪ منفی — معامله خلاف جهت ازدحام (خرید) (امتیاز ۷۸) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۰ (مومنتوم صعودی)، فاندینگ منفی (‎−۰٫۲۷۴٪)</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۶:۵۳</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>DOGE/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge mid">بنیاد متوسط ۵۷</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:51.50874288359608%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۲</b>
+        </div>
+        <div class="reason">ورود: ۰٫۰۷۷۲ · حد ضرر: <span class="down">۰٫۰۷۸۲</span> · حد سود: <span class="up">۰٫۰۷۵۶</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۷۱ در اشباع خرید با کندل نزولی و سایهٔ بالایی — فروش خلاف‌روند (امتیاز ۵۲) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۱ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۶٫۱٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۶:۳۹</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>KORUB/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:3%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">‎−۴۲</b>
+        </div>
+        <div class="reason">ورود: ۹٫۹۲ · حد ضرر: <span class="down">۹٫۳۲۴۳</span> · حد سود: <span class="up">۱۰٫۸۱۳۶</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۲۹ در اشباع فروش با حفظ حمایت — خرید خلاف‌روند (امتیاز ‎−۴۲) — EMA20 زیر EMA50 — روند نزولی، RSI ۲۹ (فشار نزولی)، MACD منفی</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۴:۳۹</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>SKHYB/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:3%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">‎−۴۲</b>
+        </div>
+        <div class="reason">ورود: ۱۳۹٫۳۱ · حد ضرر: <span class="down">۱۳۵٫۰۸۹۶</span> · حد سود: <span class="up">۱۴۵٫۶۴۰۵</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۲۶ در اشباع فروش با حفظ حمایت — خرید خلاف‌روند (امتیاز ‎−۴۲) — EMA20 زیر EMA50 — روند نزولی، RSI ۲۶ (فشار نزولی)، MACD منفی</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۴:۳۹</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>INJ/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:46.90742973213925%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۴۷</b>
+        </div>
+        <div class="reason">ورود: ۷٫۹۰۶ · حد ضرر: <span class="down">۸٫۰۸۶۳</span> · حد سود: <span class="up">۷٫۶۳۵۵</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۷۶ در اشباع خرید با کندل نزولی و سایهٔ بالایی — فروش خلاف‌روند (امتیاز ۴۷) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۶ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۴٫۶٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۴:۳۴</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>BTC/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge strong">بنیاد قوی ۹۶</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:56.68087074840895%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۷</b>
+        </div>
+        <div class="reason">ورود: ۸۰٬۵۴۶٫۰۱ · حد ضرر: <span class="down">۸۱٬۳۶۳٫۲۰۳۶</span> · حد سود: <span class="up">۷۹٬۳۲۰٫۲۱۹۶</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۷۷ در اشباع خرید با کندل نزولی و سایهٔ بالایی — فروش خلاف‌روند (امتیاز ۵۷) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۷ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۴٫۶٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۴:۳۱</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>BNB/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge mid">بنیاد متوسط ۶۵</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:56.86599838452396%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۷</b>
+        </div>
+        <div class="reason">ورود: ۷۱۸٫۶۱ · حد ضرر: <span class="down">۷۲۵٫۲۷۲۱</span> · حد سود: <span class="up">۷۰۸٫۶۱۶۸</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۷۲ در اشباع خرید با کندل نزولی و سایهٔ بالایی — فروش خلاف‌روند (امتیاز ۵۷) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۲ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۴٫۶٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۴:۳۱</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>BCH/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge mid">بنیاد متوسط ۵۷</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:56.92184311065805%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۷</b>
+        </div>
+        <div class="reason">ورود: ۲۷۹٫۷ · حد ضرر: <span class="down">۲۷۴٫۲۳۵۷</span> · حد سود: <span class="up">۲۸۷٫۸۹۶۴</span> · استراتژی: trend_following</div>
+        <div class="reason">روندیابی — تقاطع EMA20/EMA50 در ۵ کندل اخیر با تأیید شیب — ورود خرید (امتیاز ۵۷) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۰ (مومنتوم صعودی)، MACD مثبت</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱:۱۵</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>SKY/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge weak">بنیاد ضعیف ۳۵</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:58.64476180191701%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۵۹</b>
+        </div>
+        <div class="reason">ورود: ۰٫۰۶۷۱ · حد ضرر: <span class="down">۰٫۰۶۵۹</span> · حد سود: <span class="up">۰٫۰۶۸۹</span> · استراتژی: trend_following</div>
+        <div class="reason">روندیابی — تقاطع EMA20/EMA50 در ۵ کندل اخیر با تأیید شیب — ورود خرید (امتیاز ۵۹) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۰ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۳٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱:۱۵</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>SHIB/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge weak">بنیاد ضعیف ۴۰</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:59.58788962889277%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۶۰</b>
+        </div>
+        <div class="reason">ورود: ۰ · حد ضرر: <span class="down">۰</span> · حد سود: <span class="up">۰</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۷۱ در اشباع خرید با کندل نزولی و سایهٔ بالایی — فروش خلاف‌روند (امتیاز ۶۰) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۱ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۳٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱:۱۵</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>HBAR/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            <span class="badge weak">بنیاد ضعیف ۴۰</span>
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:59.93341037157091%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۶۰</b>
+        </div>
+        <div class="reason">ورود: ۰٫۰۷۲ · حد ضرر: <span class="down">۰٫۰۷۰۶</span> · حد سود: <span class="up">۰٫۰۷۴۱</span> · استراتژی: trend_following</div>
+        <div class="reason">روندیابی — تقاطع EMA20/EMA50 در ۵ کندل اخیر با تأیید شیب — ورود خرید (امتیاز ۶۰) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۱ (مومنتوم صعودی)، MACD مثبت</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۱:۱۵</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>SNDKB/USDT — خرید</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:3%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">‎−۴۱</b>
+        </div>
+        <div class="reason">ورود: ۱٬۰۳۶٫۸۹ · حد ضرر: <span class="down">۹۹۸٫۵۱۷۹</span> · حد سود: <span class="up">۱٬۰۹۴٫۴۴۸۲</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۲۸ در اشباع فروش با حفظ حمایت — خرید خلاف‌روند (امتیاز ‎−۴۱) — EMA20 زیر EMA50 — روند نزولی، RSI ۲۸ (فشار نزولی)، MACD منفی</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۰:۵۲</div>
+      </div><div style="padding:9px 0;border-bottom:1px solid #1e242c">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>INJ/USDT — فروش</b>
+          <span style="display:flex;gap:5px;align-items:center">
+            
+            <span class="pill ">منقضی</span>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+          <span class="bar" style="flex:1"><i style="width:45.41420734143448%"></i></span>
+          <b style="width:40px;text-align:left;color:#f0b90b">۴۵</b>
+        </div>
+        <div class="reason">ورود: ۷٫۹۰۶ · حد ضرر: <span class="down">۸٫۰۸۶۳</span> · حد سود: <span class="up">۷٫۶۳۵۵</span> · استراتژی: mean_reversion</div>
+        <div class="reason">بازگشت به میانگین — RSI ۷۶ در اشباع خرید با کندل نزولی و سایهٔ بالایی — فروش خلاف‌روند (امتیاز ۴۵) — EMA20 بالای EMA50 — روند صعودی، RSI ۷۶ (مومنتوم صعودی)، بازگشت ۲۴س بیت‌کوین ۲٫۹٪</div>
+        <div class="sub">۱۴۰۵/۸/۱۴, ۰:۳۷</div>
+      </div>
+      </div></section>
+  <section data-tab="coins" hidden><div class="card">
+        <h2>وضعیت بنیادی بازار چطور سنجیده می‌شود؟</h2>
+        <div class="reason">امتیاز بنیادی هر ارز (۰ تا ۱۰۰) از ترکیب ۵ عامل ساخته می‌شود: رتبه بازار (۳۰ امتیاز) + نقدشوندگی حجم روزانه (۲۵) + باثباتی نوسان (۲۰) + سلامت روند روزانه (۱۵) + فشار فاندینگ (۱۰). «بنیاد قوی» یعنی پروژهٔ بزرگ، پرحجم و کم‌ریسک؛ «بنیاد ضعیف» یعنی پروژهٔ کوچک‌تر یا پرنوسان که ریسک بالاتری دارد.</div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><span class="pill">شاخص ترس‌وطمع: <b>۵۰</b> (خنثی)</span></div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="badge strong">بنیاد قوی · ۷۰ به بالا</span>
+          <span class="badge mid">بنیاد متوسط · ۵۰ تا ۶۹</span>
+          <span class="badge weak">بنیاد ضعیف · زیر ۵۰</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>ارزهای تحت پوشش (۳۸) — برای دیدن جزییات، روی هر ردیف بزنید</h2>
+        <details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">BTC/USDT</b>
+              <div class="sub">Bitcoin</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge strong">بنیاد قوی ۹۶</span></div>
+            <div class="sub" style="margin-top:3px">۸۰٬۵۳۰٫۰۷ · <span class="up">+۲٫۷٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱٫۵۲ میلیارد دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۶۲ هزار میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۲٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۲٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۷</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۳٫۳٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۵٫۹٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۱٫۵۲ میلیارد دلار — نقدشوندگی عالی<br>• نوسان روزانه حدود ۲٫۴٪ — باثبات<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۳٫۳٪<br>• نرخ فاندینگ ۰٫۰۰۲٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۵</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">USDC/USDT</b>
+              <div class="sub">USDC</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge strong">بنیاد قوی ۹۶</span></div>
+            <div class="sub" style="margin-top:3px">۱٫۰۰۰۹ · <span class="down">−۰٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱٫۳۴ میلیارد دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۷۰٫۷۸ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>−۰٫۰۰۲٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۰٫۲٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۶</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نیمه‌صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۰٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="up">+۰٫۱٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۵ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۱٫۳۴ میلیارد دلار — نقدشوندگی عالی<br>• نوسان روزانه حدود ۰٫۲٪ — باثبات<br>• قیمت بالای میانگین ۵۰ روزه — ساختار روزانه سالم<br>• بازده ۷روزه: −۰٫۱٪<br>• نرخ فاندینگ ۰٫۰۰۲٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">ETH/USDT</b>
+              <div class="sub">Ethereum</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge strong">بنیاد قوی ۸۸</span></div>
+            <div class="sub" style="margin-top:3px">۲٬۴۲۰٫۹۷ · <span class="up">+۴٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۷۱۲٫۹ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲۹۵٫۶۸ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>−۰٫۰۰۳٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۳٫۳٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۵</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۷٫۴٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۰٫۳٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۷۱۲٫۹ میلیون دلار — نقدشوندگی خوب<br>• نوسان روزانه حدود ۳٫۳٪ — نوسان معمول<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۷٫۴٪<br>• نرخ فاندینگ ۰٫۰۰۳٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۸</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">ZEC/USDT</b>
+              <div class="sub">Zcash</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge strong">بنیاد قوی ۷۳</span></div>
+            <div class="sub" style="margin-top:3px">۱٬۳۱۹٫۸ · <span class="up">+۲٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۲۱۰٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲۲٫۴۱ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۳٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۷٫۸٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۹</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۷٫۹٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۳٫۴٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۸ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۲۱۰٫۱ میلیون دلار — نقدشوندگی خوب<br>• نوسان روزانه حدود ۷٫۸٪ — پرنوسان و پرریسک<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۷٫۹٪<br>• نرخ فاندینگ ۰٫۰۰۳٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۴</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">XRP/USDT</b>
+              <div class="sub">XRP</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge strong">بنیاد قوی ۷۲</span></div>
+            <div class="sub" style="margin-top:3px">۱٫۳۲۴۱ · <span class="up">+۳٫۳٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۳۲٫۲ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۸۳٫۸۴ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۳٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۱</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نیمه‌نزولی در حال بهبود</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۷٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۱٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۴ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۱۳۲٫۲ میلیون دلار — نقدشوندگی خوب<br>• نوسان روزانه حدود ۳٫۴٪ — نوسان معمول<br>• فقط بالای میانگین ۲۰ روزه — روند هنوز تثبیت نشده<br>• بازده ۷روزه: +۷٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۶</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">SOL/USDT</b>
+              <div class="sub">Solana</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۶۸</span></div>
+            <div class="sub" style="margin-top:3px">۹۶٫۶۳ · <span class="up">+۳٫۵٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۲۴۹ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۵۷٫۰۹ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۱٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۳</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۹٫۹٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۶ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۲۴۹ میلیون دلار — نقدشوندگی خوب<br>• نوسان روزانه حدود ۴٫۱٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۱٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">BNB/USDT</b>
+              <div class="sub">BNB</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۶۵</span></div>
+            <div class="sub" style="margin-top:3px">۷۱۵٫۰۸ · <span class="up">+۱٫۸٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۰۸٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۹۴٫۰۳ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱۳٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۳٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۴</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۴٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۸٫۳٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۱۰۸٫۸ میلیون دلار — نقدشوندگی خوب<br>• نوسان روزانه حدود ۳٫۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۲٫۴٪<br>• نرخ فاندینگ +۰٫۰۱۳٪ — ازدحام خریداران (ریسک اصلاح)</div>
+        
+        <div class="reason" style="margin-top:4px">پوزیشن باز در صندوق: خرید · سود/زیان فعلی <b class="up">۰٪</b></div>
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۴</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">XAUT/USDT</b>
+              <div class="sub">Tether Gold</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۶۲</span></div>
+            <div class="sub" style="margin-top:3px">۴٬۱۰۷٫۵۳ · <span class="up">+۲٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۵۲٫۴ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳٫۰۷ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۴٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۱٫۵٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۸</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نیمه‌نزولی در حال بهبود</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۵٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱٫۴٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۴ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۵۲٫۴ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۱٫۵٪ — باثبات<br>• فقط بالای میانگین ۲۰ روزه — روند هنوز تثبیت نشده<br>• بازده ۷روزه: +۲٫۵٪<br>• نرخ فاندینگ ۰٫۰۰۴٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۶</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">UNI/USDT</b>
+              <div class="sub">Uniswap</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۶۰</span></div>
+            <div class="sub" style="margin-top:3px">۷٫۶۴۱ · <span class="up">+۱٫۹٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۶۰٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۴٫۷۷ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۷٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۶۱</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۱۸٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۰٫۸٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۶ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۶۰٫۸ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۷٪ — پرنوسان و پرریسک<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۱۸٫۱٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۱</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">USD1/USDT</b>
+              <div class="sub">World Liberty Financial USD</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۸</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۹۹۸۹۴ · <span class="down">−۰٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۴۰٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳٫۶۷ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>—</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۰٫۱٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۰</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۰٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۰٫۱٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۱ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۴۰٫۱ میلیون دلار — نقدشوندگی خوب<br>• نوسان روزانه حدود ۰٫۱٪ — باثبات<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: −۰٪</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۷</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">TRX/USDT</b>
+              <div class="sub">TRON</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۷</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۳۱۸۳ · <span class="down">−۱٫۳٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۲۹٫۴ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳۰٫۲۴ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>−۰٫۰۰۷٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۳٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۵</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۹٫۷٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۵٫۱٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۷ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۲۹٫۴ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۳٫۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: −۹٫۷٪<br>• نرخ فاندینگ ۰٫۰۰۷٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۰</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">DOGE/USDT</b>
+              <div class="sub">Dogecoin</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۷</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۰۷۶۹۴ · <span class="up">+۲٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۳۷٫۲ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱۲٫۰۵ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۳</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۲٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۷٫۹٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۰ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۳۷٫۲ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۲٫۲٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۴</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">BCH/USDT</b>
+              <div class="sub">Bitcoin Cash</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۷</span></div>
+            <div class="sub" style="margin-top:3px">۲۸۸٫۳ · <span class="up">+۴٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۸٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۵٫۸۱ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۸٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۵٫۵٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۵</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۵٫۳٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۷٫۵٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۴ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۸٫۸ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۵٫۵٪ — نوسان معمول<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۵٫۳٪<br>• نرخ فاندینگ ۰٫۰۰۸٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۴</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">ASTER/USDT</b>
+              <div class="sub">Aster</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۶</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۷۰۷۸ · <span class="up">+۰٫۴٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۶٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۹۶ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۳٫۲٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۷</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۸٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۳٫۹٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۴ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۶٫۸ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۳٫۲٪ — نوسان معمول<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۲٫۸٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۵</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">PAXG/USDT</b>
+              <div class="sub">PAX Gold</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۶</span></div>
+            <div class="sub" style="margin-top:3px">۴٬۱۱۸٫۹۳ · <span class="up">+۲٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۴٫۵ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۸۴ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۴٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۱٫۵٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۵۸</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نیمه‌نزولی در حال بهبود</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۶٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱٫۲٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۵ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۴٫۵ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۱٫۵٪ — باثبات<br>• فقط بالای میانگین ۲۰ روزه — روند هنوز تثبیت نشده<br>• بازده ۷روزه: +۲٫۶٪<br>• نرخ فاندینگ ۰٫۰۰۴٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۹</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">HYPE/USDT</b>
+              <div class="sub">Hyperliquid</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۴</span></div>
+            <div class="sub" style="margin-top:3px">۸۳٫۷۹ · <span class="down">−۳٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۴۰ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲۱٫۲۱ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۶٫۱٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۶۲</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نامشخص (کندل روزانه کافی نیست)</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۵٫۹٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۸٫۹٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۹ بازار — از پروژه‌های بزرگ و جاافتاده<br>• حجم معاملات ۲۴ساعت: ۴۰ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۶٫۱٪ — پرنوسان و پرریسک<br>• بازده ۷روزه: −۵٫۹٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۷</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">RLUSD/USDT</b>
+              <div class="sub">Ripple USD</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۴</span></div>
+            <div class="sub" style="margin-top:3px">۱٫۰۰۰۸ · <span class="down">−۰٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۶۳٫۴ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۶۱ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>—</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۰٫۱٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۶</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۰٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="up">+۰٫۱٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۷ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۶۳٫۴ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۰٫۱٪ — باثبات<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: −۰٫۱٪</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۷</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">USDE/USDT</b>
+              <div class="sub">Ethena USDe</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge mid">بنیاد متوسط ۵۳</span></div>
+            <div class="sub" style="margin-top:3px">۱٫۰۰۰۳ · <span class="down">−۰٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۴۱۸٬۵۱۹ دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۴٫۵۸ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>—</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۰٫۲٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۳</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۰٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="up">+۰٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۷ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۴۱۸٬۵۱۹ دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۰٫۲٪ — باثبات<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۰٪</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۳</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">XLM/USDT</b>
+              <div class="sub">Stellar</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۹</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۱۶۷۵ · <span class="up">+۲٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۹٫۷ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۵٫۹۲ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۳٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۲</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۳٫۲٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۱٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۳ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۹٫۷ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۴٫۳٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۳٫۲٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۸</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">LTC/USDT</b>
+              <div class="sub">Litecoin</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۹</span></div>
+            <div class="sub" style="margin-top:3px">۵۶٫۱۳ · <span class="up">+۲٫۷٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۲٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۴٫۳۷ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۰</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۸٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۸ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۲٫۱ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۴٫۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۲٫۱٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        <div class="reason" style="margin-top:4px">پوزیشن باز در صندوق: خرید · سود/زیان فعلی <b class="up">۰٪</b></div>
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۱</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">LINK/USDT</b>
+              <div class="sub">Chainlink</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۸</span></div>
+            <div class="sub" style="margin-top:3px">۱۱٫۶۱۱ · <span class="up">+۳٫۷٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۲۵٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۸٫۶۹ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۵٫۵٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۵</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۹٫۳٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۶٫۸٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۱ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۲۵٫۸ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۵٫۵٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۹٫۳٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        <div class="reason" style="margin-top:4px">پوزیشن باز در صندوق: خرید · سود/زیان فعلی <b class="up">۰٪</b></div>
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۰</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">SUI/USDT</b>
+              <div class="sub">Sui</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۸</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۹۲۸۹ · <span class="up">+۱٫۳٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۳۹٫۶ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳٫۸۵ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۵٫۳٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۲</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۶٫۸٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۱٫۲٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۰ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۳۹٫۶ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۵٫۳٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۶٫۸٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۰</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">PEPE/USDT</b>
+              <div class="sub">Pepe</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۸</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۰۰۰۰۰۵ · <span class="down">−۲٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۶۶٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۰۸ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>—</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۱۰٫۳٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۶۲</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۱۰٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="up">+۱۷٫۳٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۰ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۶۶٫۱ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۱۰٫۳٪ — پرنوسان و پرریسک<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۱۰٫۱٪</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۸</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">QNT/USDT</b>
+              <div class="sub">Quant</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۶</span></div>
+            <div class="sub" style="margin-top:3px">۲۰۵٫۴۲ · <span class="up">+۵٫۷٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۴٫۲ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۴۹ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۸٫۲٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۶۰</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>صعودی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۱۲٫۳٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۲٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۸ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۴٫۲ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۸٫۲٪ — پرنوسان و پرریسک<br>• قیمت بالای میانگین‌های ۲۰ و ۵۰ روزه — روند روزانه صعودی<br>• بازده ۷روزه: +۱۲٫۳٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۷</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">U/USDT</b>
+              <div class="sub">United Stables</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۶</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۹۹۹۹ · <span class="up">۰٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۴۲٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۶۱ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>—</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۰٫۱٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۱</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۰٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="up">+۰٫۱٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۷ در پوشش سیستم — پروژهٔ کوچک‌تر و پرریسک‌تر<br>• حجم معاملات ۲۴ساعت: ۴۲٫۱ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۰٫۱٪ — باثبات<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: −۰٫۱٪</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۲</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">ADA/USDT</b>
+              <div class="sub">Cardano</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۵</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۱۹۹ · <span class="up">+۳٫۵٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۹٫۹ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۷٫۳۳ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۸٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۶</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۴٫۵٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۵٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۲ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۹٫۹ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۴٫۸٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۴٫۵٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۵</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">NEAR/USDT</b>
+              <div class="sub">NEAR Protocol</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۵</span></div>
+            <div class="sub" style="margin-top:3px">۴٫۰۲۹ · <span class="down">−۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۹۸٫۵ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۵٫۲۹ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۹٫۲٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۴</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="down">−۰٫۷٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۰٫۵٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۵ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۹۸٫۵ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۹٫۲٪ — پرنوسان و پرریسک<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: −۰٫۷٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۱۹</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">AVAX/USDT</b>
+              <div class="sub">Avalanche</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۵</span></div>
+            <div class="sub" style="margin-top:3px">۸٫۷۷۷ · <span class="up">+۱٫۱٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۴٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳٫۹ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۹٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۲</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۶٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۴٫۴٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۱۹ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۴٫۱ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۴٫۹٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۶٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۲</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">GRAM/USDT</b>
+              <div class="sub">Gram (prev. Toncoin)</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۰</span></div>
+            <div class="sub" style="margin-top:3px">۱٫۱۶۷ · <span class="down">−۱٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۵٫۱ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳٫۳۲ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۵٫۲٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۱</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۰٫۵٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۳٫۴٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۲ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۵٫۱ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۵٫۲٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۰٫۵٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۳</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">HBAR/USDT</b>
+              <div class="sub">Hedera</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۰</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۰۷۳۲۷ · <span class="up">+۳٫۴٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۶٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۳٫۲۵ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۹٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۴</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۶٫۲٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۶٫۵٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۳ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۶٫۸ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۴٫۹٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۶٫۲٪<br>• نرخ فاندینگ ۰٫۰۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۵</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">SHIB/USDT</b>
+              <div class="sub">Shiba Inu</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۰</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۰۰۰۰۰۴۸ · <span class="up">+۱٫۳٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۸ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>—</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۴٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۲</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۶٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۸٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۵ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱٫۸ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۴٫۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۲٫۶٪</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۶</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">TAO/USDT</b>
+              <div class="sub">Bittensor</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۰</span></div>
+            <div class="sub" style="margin-top:3px">۲۳۶٫۲ · <span class="up">+۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۲٫۷ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۷۶ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۵٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۵</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۰٫۹٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۳٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۶ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۲٫۷ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۵٫۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۰٫۹٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۱</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">AAVE/USDT</b>
+              <div class="sub">Aave</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۴۰</span></div>
+            <div class="sub" style="margin-top:3px">۱۳۳٫۳۲ · <span class="up">+۱٫۵٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۲۰٫۳ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۰۶ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۱٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۶٫۶٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۸</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۱۱٫۷٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۵٫۸٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۱ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۲۰٫۳ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۶٫۶٪ — پرنوسان و پرریسک<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۱۱٫۷٪<br>• نرخ فاندینگ ۰٫۰۱٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۲۹</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">ENA/USDT</b>
+              <div class="sub">Ethena</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۳۷</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۱۸۱۱ · <span class="down">−۰٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۳۲٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲٫۴۵ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۱۰٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۱</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۳٫۲٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۴٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۲۹ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۳۲٫۸ میلیون دلار — نقدشوندگی متوسط<br>• نوسان روزانه حدود ۱۰٫۴٪ — پرنوسان و پرریسک<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۳٫۲٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۲</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">ONDO/USDT</b>
+              <div class="sub">Ondo</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۳۷</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۴۱ · <span class="up">+۱٫۴٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۰٫۶ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۲ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۶٫۵٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۴</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۷٫۷٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۱۶٫۶٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۲ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۰٫۶ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۶٫۵٪ — پرنوسان و پرریسک<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۷٫۷٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۸</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">SKY/USDT</b>
+              <div class="sub">Sky</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۳۵</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۰۶۷۶۵ · <span class="up">+۱٫۵٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۹۲۱٬۰۷۶ دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۵۸ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۵٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۵٫۴٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۳۶</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۲٫۲٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۴٫۲٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۸ در پوشش سیستم — پروژهٔ کوچک‌تر و پرریسک‌تر<br>• حجم معاملات ۲۴ساعت: ۹۲۱٬۰۷۶ دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۵٫۴٪ — نوسان معمول<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۲٫۲٪<br>• نرخ فاندینگ ۰٫۰۰۵٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۳</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">PUMP/USDT</b>
+              <div class="sub">Pump.fun</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۳۴</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۰۰۴۳۳۲ · <span class="down">−۲٫۷٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۱۸٫۸ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۹۹ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>+۰٫۰۰۴٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۸٫۵٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۴۵</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۹٫۷٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۹٫۹٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۳ بازار — پروژه‌ای شناخته‌شده<br>• حجم معاملات ۲۴ساعت: ۱۸٫۸ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۸٫۵٪ — پرنوسان و پرریسک<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۹٫۷٪<br>• نرخ فاندینگ ۰٫۰۰۴٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details><details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">۳۶</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">DOT/USDT</b>
+              <div class="sub">Polkadot</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div><span class="badge weak">بنیاد ضعیف ۳۲</span></div>
+            <div class="sub" style="margin-top:3px">۰٫۹۵۵ · <span class="down">−۰٫۲٪</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>۴ میلیون دلار</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>۱٫۶۳ میلیارد دلار</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>−۰٫۰۰۹٪</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>۶٫۳٪</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>۲۸</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>نزولی</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="up">+۵٫۱٪</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="down">−۲۰٫۵٪</b></div>
+        </div>
+        <div class="reason">• رتبه ۳۶ در پوشش سیستم — پروژهٔ کوچک‌تر و پرریسک‌تر<br>• حجم معاملات ۲۴ساعت: ۴ میلیون دلار — نقدشوندگی کم<br>• نوسان روزانه حدود ۶٫۳٪ — پرنوسان و پرریسک<br>• قیمت زیر میانگین‌های متحرک — ساختار روزانه ضعیف<br>• بازده ۷روزه: +۵٫۱٪<br>• نرخ فاندینگ ۰٫۰۰۹٪ — طبیعی، بدون ازدحام</div>
+        
+        
+      </div>
+    </details>
+      </div></section>
+  <section data-tab="fund" hidden>
+    <div class="kpis">
+      <div class="kpi"><span>دارایی فعلی</span><b>۹٬۹۸۹٫۰۵ USDT</b></div>
+      <div class="kpi"><span>سود/زیان باز</span><b class="down">‎−۱۱٫۳ USDT</b></div>
+      <div class="kpi"><span>معاملات بسته‌شده</span><b>۱</b></div>
+      <div class="kpi"><span>پوزیشن‌های ربات</span><b>۱ باز / ۱ کل</b></div>
+    </div>
+    <div class="card">
+      <h2>ربات معامله‌گر</h2>
+      <div class="reason">
+        وضعیت: <b class="up">روشن — خودش از سیگنال‌های قوی معامله می‌کند</b>
+        · حداقل امتیاز ورود: ۶۵ · سقف پوزیشن ربات: ۶ · خنک‌شدن پس از ضرر: ۶ ساعت
+      </div>
+      <div class="reason" style="margin-top:6px">قوانین مدیریت: بعد از سود +۱٪ حد ضرر به سر‌به‌سر می‌رود، بعد از +۱٫۶٪ متحرک می‌شود، و معاملهٔ بی‌تحرک بعد از ۷۲ ساعت بسته می‌شود.</div>
+      <div class="reason" style="margin-top:6px">آخرین فعالیت ربات: <b class="up">موفق</b> — ورود: ۰ ردشده: ۱ — مدیریت: بدون تغییر <span class="sub">(۱۴۰۵/۸/۱۴, ۱۲:۱۵)</span></div>
+    </div>
+    <div class="card">
+      <h2>پوزیشن‌های باز</h2>
+      <div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>ورود</th><th>فعلی</th><th>حد ضرر</th><th>حد سود</th><th>سود</th></tr>
+      <tr><td>LSK/USDT</td><td>خرید</td><td>۰٫۲۱۶۲</td><td>۰٫۲۱۰۷</td><td class="down">۰٫۲۰۳۲</td><td class="up">۰٫۲۳۵۸</td><td class="up">۰٪</td></tr><tr><td>GOOGLB/USDT</td><td>خرید</td><td>۲۸۹٫۶۷</td><td>۲۹۱٫۸۶</td><td class="down">۲۸۷٫۳۳۸۶</td><td class="up">۲۹۳٫۱۶۷۱</td><td class="up">۰٪</td></tr><tr><td>LINK/USDT</td><td>خرید</td><td>۱۱٫۵۴۷</td><td>۱۱٫۶۱۱</td><td class="down">۱۱٫۳۹۷۳</td><td class="up">۱۱٫۷۷۱۵</td><td class="up">۰٪</td></tr><tr><td>LTC/USDT</td><td>خرید</td><td>۵۵٫۸۸</td><td>۵۶٫۱۳</td><td class="down">۵۵٫۳۱</td><td class="up">۵۶٫۷۳۵</td><td class="up">۰٪</td></tr><tr><td>BNB/USDT</td><td>خرید</td><td>۷۱۳٫۵</td><td>۷۱۵٫۰۸</td><td class="down">۷۰۹٫۲۶۰۴</td><td class="up">۷۱۹٫۸۵۹۵</td><td class="up">۰٪</td></tr></table></div>
+    </div>
+    <div class="card">
+      <h2>معاملات اخیر بسته‌شده</h2>
+      <div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>سود USDT</th><th>سود ٪</th><th>زمان بستن</th></tr>
+      <tr><td>GOOGLB/USDT</td><td>خرید</td><td class="up">۰٫۳۴</td><td class="up">۰٫۰۲٪</td><td class="sub">۱۴۰۵/۸/۱۳, ۲۲:۱۸</td></tr></table></div>
+    </div></section>
+  <section data-tab="brain" hidden>
+    <div class="kpis">
+      <div class="kpi"><span>نمونه‌های جمع‌آوری‌شده</span><b>۳۳۸</b></div>
+      <div class="kpi"><span>ارزیابی‌شده</span><b>۲۷۶</b></div>
+      <div class="kpi"><span>نرخ برد</span><b class="down">۳۰٫۸٪</b></div>
+    </div>
+    <div class="card">
+      <h2>مسیر فعال‌شدن مغز (گارد سرد‌شروع)</h2>
+      <div class="reason">مغز بعد از ۵۰ نمونهٔ ارزیابی‌شده شروع به تنظیم خودکار وزن‌ها می‌کند.</div>
+      <div class="bar" style="margin:8px 0"><i style="width:100%"></i></div>
+      <div class="sub">۲۷۶ از ۵۰ نمونه</div>
+      <div class="reason" style="margin-top:8px">
+        دقت فعلی: ۳٬۵۰۰٪ روی ۲۰۰ نمونهٔ ارزیابی‌شده
+      </div>
+    </div>
+    <div class="card">
+      <h2>وزن‌های فعلی (باندیت نسخه ۲)</h2>
+      <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">rsi</span>
+        <span class="bar" style="flex:1"><i style="width:18.500477370197366%"></i></span>
+        <b style="width:34px;text-align:left">۱۹</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">trend</span>
+        <span class="bar" style="flex:1"><i style="width:18.332128319697592%"></i></span>
+        <b style="width:34px;text-align:left">۱۸</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">macd</span>
+        <span class="bar" style="flex:1"><i style="width:11.011173531723294%"></i></span>
+        <b style="width:34px;text-align:left">۱۱</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">volume</span>
+        <span class="bar" style="flex:1"><i style="width:9.499260901824394%"></i></span>
+        <b style="width:34px;text-align:left">۹</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">funding</span>
+        <span class="bar" style="flex:1"><i style="width:12%"></i></span>
+        <b style="width:34px;text-align:left">۱۲</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">oi</span>
+        <span class="bar" style="flex:1"><i style="width:6%"></i></span>
+        <b style="width:34px;text-align:left">۶</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">stretch</span>
+        <span class="bar" style="flex:1"><i style="width:7.28478920021909%"></i></span>
+        <b style="width:34px;text-align:left">۷</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">btc</span>
+        <span class="bar" style="flex:1"><i style="width:10.829999999999998%"></i></span>
+        <b style="width:34px;text-align:left">۱۱</b>
+      </div><div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="width:86px;font-size:11px;color:#848e9c">mtf</span>
+        <span class="bar" style="flex:1"><i style="width:13.501782222188472%"></i></span>
+        <b style="width:34px;text-align:left">۱۴</b>
+      </div>
+    </div>
+    <div class="card">
+      <h2>اعتماد به استراتژی‌ها (یادگرفته‌شده از نتایج واقعی)</h2>
+      <div class="reason">ضریب بالای ۱ = استراتژی پربازده‌تر (امتیازش تقویت می‌شود)، زیر ۱ = ضعیف‌تر (سخت‌گیرانه‌تر می‌شود).</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+        <span style="padding:4px 10px;border-radius:12px;font-size:11px;background:rgba(246,70,93,.12);color:#f6465d">بازگشت به میانگین ×۰٫۹۴</span><span style="padding:4px 10px;border-radius:12px;font-size:11px;background:rgba(246,70,93,.12);color:#f6465d">روندیابی ×۰٫۹۱</span>
+      </div>
+    </div></section>
+  <section data-tab="nightshift" hidden>
+    <div class="card">
+      <h2>موتور زمان‌بندی (بدون نیاز به کامپیوتر روشن)</h2>
+      <div class="reason">این وظایف روی سرور رایگان GitHub Actions هر ۱۵ دقیقه یک‌جا اجرا می‌شوند؛ حتی وقتی گوشی و کامپیوتر شما خاموش است.</div>
+    </div>
+    <div class="card">
+      <h2>وظایف و فاصلهٔ اجرا</h2>
+      <div class="twrap"><table><tr><th>وظیفه</th><th>فاصله</th><th>آخرین وضعیت</th><th>جزئیات</th><th>زمان</th></tr>
+      <tr>
+          <td>تیکرها</td>
+          <td class="sub">۱ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">۳۸ تیکر ذخیره شد</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۴</td>
+        </tr><tr>
+          <td>کندل‌ها</td>
+          <td class="sub">۱۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">۱۵۵ کندل ذخیره شد</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۴</td>
+        </tr><tr>
+          <td>رتبه‌بندی CMC</td>
+          <td class="sub">۱۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">universe از CMC + سنجه‌های کلان</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>فاندینگ/OI</td>
+          <td class="sub">۱ ساعت</td>
+          <td class="up">موفق</td>
+          <td class="reason">۳۳/۵۰ نماد فاندینگ/OI ذخیره شد — ترس/طمع: خنثی (50)</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>اسکن رادار</td>
+          <td class="sub">۱۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">۳۸ نماد اسکن شد — ۰ سیگنال جدید، ۰ زیر آستانه</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>ارزش‌گذاری صندوق</td>
+          <td class="sub">۱ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">به‌روزرسانی قیمت انجام شد</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>ربات معامله‌گر</td>
+          <td class="sub">۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">ورود: ۰ ردشده: ۱ — مدیریت: بدون تغییر</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>خودترمیمی</td>
+          <td class="sub">۱۰ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">سامانه سالم است — نیازی به ترمیم نبود</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>خودبهینه‌سازی</td>
+          <td class="sub">۱ ساعت</td>
+          <td class="up">موفق</td>
+          <td class="reason">بهینه‌سازی روزانه انجام شده — پایش ادامه دارد (حجم دیتابیس ۱</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>خودبروزرسانی</td>
+          <td class="sub">۱ ساعت</td>
+          <td class="up">موفق</td>
+          <td class="reason">همگام‌سازی خودکار انجام شد (دادهٔ محلی با مخزن یکپارچه شد)</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>آموزش مغز</td>
+          <td class="sub">۱ ساعت</td>
+          <td class="up">موفق</td>
+          <td class="reason">ارزیابی ۰ نمونه (TP:۰ SL:۰) — در انتظار نمونهٔ کافی برای آمو</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>نمودار سرمایه</td>
+          <td class="sub">۱ ساعت</td>
+          <td class="up">موفق</td>
+          <td class="reason">سرمایه لحظه‌ای: ۹٬۹۴۵٫۵ USDT</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۲۷</td>
+        </tr><tr>
+          <td>پایش سلامت</td>
+          <td class="sub">۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason">spot=سالم futures=قطع</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>خودآزمایی مغز</td>
+          <td class="sub">۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason"> outside window (12:15 تهران)</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr><tr>
+          <td>پاک‌سازی داده</td>
+          <td class="sub">۵ دقیقه</td>
+          <td class="up">موفق</td>
+          <td class="reason"> outside window (12:15 تهران)</td>
+          <td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td>
+        </tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>۱۲ رویداد اخیر</h2>
+      <div class="twrap"><table><tr><th>وظیفه</th><th>وضعیت</th><th>جزئیات</th><th>زمان</th></tr>
+      <tr><td>پاک‌سازی داده</td><td class="up">موفق</td><td class="reason"> outside window (12:15 تهران)</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>خودآزمایی مغز</td><td class="up">موفق</td><td class="reason"> outside window (12:15 تهران)</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>خودترمیمی</td><td class="up">موفق</td><td class="reason">سامانه سالم است — نیازی به ترمیم نبود</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>پایش سلامت</td><td class="up">موفق</td><td class="reason">spot=سالم futures=قطع</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>ربات معامله‌گر</td><td class="up">موفق</td><td class="reason">ورود: ۰ ردشده: ۱ — مدیریت: بدون تغییر</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>ارزش‌گذاری صندوق</td><td class="up">موفق</td><td class="reason">به‌روزرسانی قیمت انجام شد</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>اسکن رادار</td><td class="up">موفق</td><td class="reason">۳۸ نماد اسکن شد — ۰ سیگنال جدید، ۰ زیر آستانه</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>رتبه‌بندی CMC</td><td class="up">موفق</td><td class="reason">universe از CMC + سنجه‌های کلان</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۵</td></tr><tr><td>کندل‌ها</td><td class="up">موفق</td><td class="reason">۱۵۵ کندل ذخیره شد</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۴</td></tr><tr><td>تیکرها</td><td class="up">موفق</td><td class="reason">۳۸ تیکر ذخیره شد</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۲:۱۴</td></tr><tr><td>پاک‌سازی داده</td><td class="up">موفق</td><td class="reason"> outside window (11:43 تهران)</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۴۳</td></tr><tr><td>خودآزمایی مغز</td><td class="up">موفق</td><td class="reason"> outside window (11:43 تهران)</td><td class="sub">۱۴۰۵/۸/۱۴, ۱۱:۴۳</td></tr>
+      </table></div>
+    </div></section>
+  <section data-tab="help" hidden>
+    <div class="card">
+      <h2>تنظیمات فعلی</h2>
+      <div class="twrap"><table>
+        <tr><td>حالت معاملات</td><td class="up">شبیه‌سازی (paper) — پول واقعی درگیر نیست</td></tr>
+        <tr><td>افق ارزیابی</td><td>۲۴ و ۷۲ ساعت</td></tr>
+        <tr><td>به‌روزرسانی داده</td><td>هر ۱۵ دقیقه توسط GitHub Actions</td></tr>
+        <tr><td>عملیات مدیریتی (ثبت صندوق)</td><td>فقط از داشبورد کامل داخل پنل چت</td></tr>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>هر بخش چه می‌گوید؟</h2>
+      <div class="reason" style="line-height:2">
+        <b>داشبورد:</b> خلاصهٔ کل سامانه — دارایی، سلامت منابع داده و وضعیت وظایف.<br>
+        <b>رادار فرصت‌ها:</b> سیگنال‌های خرید/فروش با امتیاز، حد ضرر و حد سود + نشان وضعیت بنیادی همان ارز؛ «ثبت‌شده در صندوق» یعنی وارد شبیه‌سازی شده.<br>
+        <b>ارزها:</b> برای هر یک از ۵۰ ارزِ تحت پوشش، امتیاز و وضعیت بنیادی (رتبه بازار، نقدشوندگی، نوسان، روند، فاندینگ) به‌همراه جزییات کامل: قیمت، حجم، ارزش بازار، بازده ۷ و ۳۰ روزه و دلایل فارسی — روی هر ردیف بزنید تا باز شود.<br>
+        <b>صندوق شبیه‌ساز:</b> پوزیشن‌های باز و بسته‌شده با سود/زیان — مثل حساب آزمایشی.<br>
+        <b>مغز یادگیرنده:</b> از نتیجهٔ سیگنال‌ها یاد می‌گیرد و وزن‌ها را خودکار تنظیم می‌کند.<br>
+        <b>شیفت‌شب:</b> موتور زمان‌بندی که ۲۴ ساعته بدون شما کار می‌کند.<br>
+        <b>لایهٔ خودکار:</b> ربات معامله‌گر خودش معامله می‌کند، خودش را بروزرسانی می‌کند، خطاها را ترمیم می‌کند و ریسک را با عملکردش تنظیم می‌کند.
+      </div>
+    </div>
+    <div class="card">
+      <h2>نصب به‌صورت اپلیکیشن</h2>
+      <div class="reason" style="line-height:2">
+        <b>اندروید (کروم):</b> منوی سه‌نقطهٔ بالای مرورگر → «افزودن به صفحه اصلی» یا «نصب برنامه» → تأیید. آیکون کریپتویار مثل یک اپ واقعی روی صفحهٔ گوشی می‌نشیند و تمام‌صفحه باز می‌شود.<br>
+        <b>آیفون و آیپد (سافاری):</b> دکمهٔ اشتراک (مربع با فلش رو به بالا) → «افزودن به صفحهٔ اصلی» → Add. اپ از آیکون خودش و بدون نوار مرورگر باز می‌شود.<br>
+        <b>ویندوز و مک (کروم یا اج):</b> در نوار آدرس آیکون نصب را بزنید، یا منوی سه‌نقطه → «Install» . اپ در پنجرهٔ مستقل خودش باز می‌شود و در منوی استارت/داک می‌نشیند.<br>
+        این نسخهٔ نصب‌شده حتی بدون اینترنت صفحه را باز می‌کند و داده‌ها همیشه از آخرین چرخهٔ ۱۵ دقیقه‌ای می‌آید.
+      </div>
+    </div>
+    <div class="card">
+      <h2>هشدار مهم</h2>
+      <div class="reason">همهٔ اعداد این صفحه آموزشی و شبیه‌سازی‌شده‌اند و هیچ توصیهٔ سرمایه‌گذاری‌ای نیستند. داده‌ها از Binance و CoinMarketCap تأمین می‌شود.</div>
+    </div></section>
+
+  <footer>
+    کریپتویار · نسخهٔ رایگان روی GitHub Actions + Pages · دادهٔ آموزشی صندوق شبیه‌سازی است و توصیهٔ سرمایه‌گذاری نیست
+  </footer>
+</main>
+<script>
+(function(){
+  var btns=document.querySelectorAll('.tabbtn'),secs=document.querySelectorAll('section[data-tab]');
+  var VALID=['dashboard','radar','coins','fund','brain','nightshift','help'];
+  function show(t,skipHash){
+    for(var i=0;i<btns.length;i++){btns[i].classList.toggle('on',btns[i].getAttribute('data-go')===t)}
+    for(var j=0;j<secs.length;j++){secs[j].hidden=secs[j].getAttribute('data-tab')!==t}
+    try{localStorage.setItem('cy_cloud_tab',t)}catch(e){}
+    if(!skipHash){try{history.replaceState(null,'','#'+t)}catch(e){}}
+  }
+  for(var i=0;i<btns.length;i++){(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-go'))})})(btns[i])}
+  var init='dashboard';
+  var h=(location.hash||'').replace('#','');
+  if(VALID.indexOf(h)>=0){init=h}
+  else{try{init=localStorage.getItem('cy_cloud_tab')||init}catch(e){}}
+  show(init,true);
+  window.addEventListener('hashchange',function(){var nh=(location.hash||'').replace('#','');if(VALID.indexOf(nh)>=0)show(nh,true)});
+  if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js')}catch(e){}}
+})();
+</script>
+</body>
+</html>

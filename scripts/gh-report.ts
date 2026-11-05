@@ -452,6 +452,15 @@ async function main(): Promise<void> {
       </div>
     </div>
     <div class="card">
+      <h2>نصب به‌صورت اپلیکیشن</h2>
+      <div class="reason" style="line-height:2">
+        <b>اندروید (کروم):</b> منوی سه‌نقطهٔ بالای مرورگر → «افزودن به صفحه اصلی» یا «نصب برنامه» → تأیید. آیکون کریپتویار مثل یک اپ واقعی روی صفحهٔ گوشی می‌نشیند و تمام‌صفحه باز می‌شود.<br>
+        <b>آیفون و آیپد (سافاری):</b> دکمهٔ اشتراک (مربع با فلش رو به بالا) → «افزودن به صفحهٔ اصلی» → Add. اپ از آیکون خودش و بدون نوار مرورگر باز می‌شود.<br>
+        <b>ویندوز و مک (کروم یا اج):</b> در نوار آدرس آیکون نصب را بزنید، یا منوی سه‌نقطه → «Install» . اپ در پنجرهٔ مستقل خودش باز می‌شود و در منوی استارت/داک می‌نشیند.<br>
+        این نسخهٔ نصب‌شده حتی بدون اینترنت صفحه را باز می‌کند و داده‌ها همیشه از آخرین چرخهٔ ۱۵ دقیقه‌ای می‌آید.
+      </div>
+    </div>
+    <div class="card">
       <h2>هشدار مهم</h2>
       <div class="reason">همهٔ اعداد این صفحه آموزشی و شبیه‌سازی‌شده‌اند و هیچ توصیهٔ سرمایه‌گذاری‌ای نیستند. داده‌ها از Binance و CoinMarketCap تأمین می‌شود.</div>
     </div>`
@@ -460,8 +469,16 @@ async function main(): Promise<void> {
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>کریپتویار — داشبورد رایگان</title>
+<meta name="theme-color" content="#0d1220">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="کریپتویار">
 <style>
   @font-face { font-family:'Vazirmatn'; src:url('fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight:400; }
   @font-face { font-family:'Vazirmatn'; src:url('fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight:700; }
@@ -561,6 +578,7 @@ async function main(): Promise<void> {
   else{try{init=localStorage.getItem('cy_cloud_tab')||init}catch(e){}}
   show(init,true);
   window.addEventListener('hashchange',function(){var nh=(location.hash||'').replace('#','');if(VALID.indexOf(nh)>=0)show(nh,true)});
+  if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js')}catch(e){}}
 })();
 </script>
 </body>
@@ -572,6 +590,58 @@ async function main(): Promise<void> {
     if (existsSync(src)) copyFileSync(src, `site/fonts/${f}`)
   }
   writeFileSync('site/index.html', html, 'utf8')
+
+  // ─── PWA: manifest + service worker + icons ───
+  const manifest = {
+    name: 'کریپتویار — شکار بهترین کوین‌ها',
+    short_name: 'کریپتویار',
+    description: 'داشبورد رایگان رادار سیگنال، صندوق شبیه‌ساز و مغز یادگیرنده',
+    lang: 'fa',
+    dir: 'rtl',
+    id: './',
+    start_url: './',
+    scope: './',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#0d1220',
+    theme_color: '#0d1220',
+    icons: [
+      { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  }
+  writeFileSync('site/manifest.json', JSON.stringify(manifest, null, 2), 'utf8')
+
+  const swJs = `var CACHE='cryptoyar-shell-v1';
+self.addEventListener('install',function(e){self.skipWaiting()});
+self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim())});
+self.addEventListener('fetch',function(e){
+  if(e.request.method!=='GET')return;
+  var url;try{url=new URL(e.request.url)}catch(err){return}
+  if(url.origin!==location.origin)return;
+  e.respondWith(
+    fetch(e.request).then(function(r){
+      if(r&&r.ok){var cp=r.clone();try{caches.open(CACHE).then(function(c){c.put(e.request,cp)})}catch(err){}}
+      return r;
+    }).catch(function(){
+      return caches.match(e.request).then(function(hit){
+        if(hit)return hit;
+        if(e.request.mode==='navigate')return caches.match('./index.html');
+        return Response.error();
+      });
+    })
+  );
+});
+`
+  writeFileSync('site/sw.js', swJs, 'utf8')
+
+  mkdirSync('site/icons', { recursive: true })
+  for (const f of ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'favicon-64.png']) {
+    const src = `public/pwa/${f}`
+    if (existsSync(src)) copyFileSync(src, `site/icons/${f}`)
+  }
+
   writeFileSync(
     'site/data.json',
     JSON.stringify(
