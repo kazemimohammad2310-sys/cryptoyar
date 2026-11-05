@@ -17,11 +17,14 @@ const ORDER = [
   'equity-snapshot',
   'brain-train',
   'health',
+  'self-heal',
+  'self-optimize',
+  'self-update',
   'self-test',
   'data-prune',
 ] as const
 
-const HOURLY = new Set(['funding-refresh', 'brain-train', 'equity-snapshot'])
+const HOURLY = new Set(['funding-refresh', 'brain-train', 'equity-snapshot', 'self-optimize', 'self-update'])
 const DEADLINE = Date.now() + 7.5 * 60_000 // hard wall-clock guard (job timeout is 12 min)
 
 async function lastOkAt(job: string): Promise<number> {

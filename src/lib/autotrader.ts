@@ -168,7 +168,7 @@ export async function runAutoTrader(): Promise<string> {
 
       const r = await openPosition({
         symbol: s.symbol,
-        side: s.side,
+        side: s.side === 'short' ? 'short' : 'long',
         signalId: s.id,
         reasonFa: `${BOT_PREFIX} — ${s.strategy}`,
       })

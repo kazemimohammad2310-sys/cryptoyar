@@ -1,10 +1,10 @@
 'use client'
 
-import { Activity, CircleDollarSign, Wallet } from 'lucide-react'
+import { Activity, CircleDollarSign, Sparkles, Wallet } from 'lucide-react'
 import { usePolling } from '@/components/cryptoyar/usePolling'
 import { EmptyNote, PnlText, SectionTitle, SideChip, SkeletonBlock, Sparkline, StatCard } from '@/components/cryptoyar/kit'
-import { faNum, faPct, faPrice } from '@/lib/fa'
-import type { FundResp, MarketResp } from '@/components/cryptoyar/types'
+import { faNum, faPct, faPrice, faTimeAgo } from '@/lib/fa'
+import type { FundResp, MarketResp, SettingsResp } from '@/components/cryptoyar/types'
 
 function faCompactUsd(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—'
@@ -28,6 +28,9 @@ function fearColor(v: number): string {
 export function DashboardTab() {
   const market = usePolling<MarketResp>('/api/market', 60_000)
   const fund = usePolling<FundResp>('/api/fund', 30_000)
+  const settings = usePolling<SettingsResp>('/api/settings', 120_000)
+
+  const au = settings.data?.autonomy ?? null
 
   const g = market.data?.global ?? null
   const fg = market.data?.fearGreed ?? null
@@ -86,6 +89,60 @@ export function DashboardTab() {
           </>
         )}
       </div>
+
+      {/* autonomy strip — self-update / self-heal / self-optimize */}
+      <section>
+        <SectionTitle icon={<Sparkles className="h-4 w-4" />}>
+          لایهٔ خودکار سامانه — بدون دخالت شما کار می‌کند
+        </SectionTitle>
+        <div className="rounded-xl border bg-card p-4 text-xs leading-6">
+          {settings.loading && !au ? (
+            <SkeletonBlock className="h-16" />
+          ) : (
+            <div className="space-y-1.5">
+              <p>
+                <span className="font-bold">خودبروزرسانی:</span>{' '}
+                {au?.version?.sha ? (
+                  <>
+                    نسخهٔ فعال <span className="cy-num">{au.version.sha}</span> · {faNum(au.version.updatedCount ?? 0, 0)} بروزرسانی و {faNum(au.version.syncCount ?? 0, 0)} همگام‌سازی خودکار
+                    {au.version.subject ? <span className="text-muted-foreground"> — {au.version.subject.slice(0, 60)}</span> : null}
+                  </>
+                ) : (
+                  'در اولین چرخه ثبت می‌شود'
+                )}
+              </p>
+              <p>
+                <span className="font-bold">خودترمیمی:</span>{' '}
+                {au?.heal ? (
+                  <>
+                    {faNum(au.heal.totalHeals ?? 0, 0)} اقدام ترمیم تا امروز
+                    {au.heal.recentActions?.length ? (
+                      <span className="text-muted-foreground"> — آخرین: {au.heal.recentActions[0].slice(0, 80)}</span>
+                    ) : (
+                      <span className="text-muted-foreground"> — فعلاً نیازی به ترمیم نبوده</span>
+                    )}
+                    {au.heal.sickNow?.length ? <span className="cy-down"> · {faNum(au.heal.sickNow.length, 0)} وظیفهٔ ناسالم در حال پایش</span> : null}
+                  </>
+                ) : (
+                  'پایش در اولین چرخه فعال می‌شود'
+                )}
+              </p>
+              <p>
+                <span className="font-bold">خودبهینه‌سازی و رشد:</span>{' '}
+                {au?.optimize?.action ? (
+                  <>
+                    {au.optimize.action}
+                    {au.optimize.sizeMB ? <span className="text-muted-foreground"> · حجم دیتابیس {faNum(au.optimize.sizeMB, 1)} مگابایت</span> : null}
+                  </>
+                ) : (
+                  'اولین تنظیم خودکار بعد از ۱۰ معاملهٔ ربات انجام می‌شود'
+                )}
+              </p>
+              {au?.version?.at ? <p className="text-muted-foreground">آخرین بررسی: {faTimeAgo(au.version.at)}</p> : null}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* equity curve */}
       <section>

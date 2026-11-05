@@ -270,6 +270,23 @@ async function jobBotTrade(): Promise<string> {
   return runAutoTrader()
 }
 
+// Autonomy jobs are lazy-imported: keeps node-only APIs (child_process, fs)
+// out of the Edge instrumentation bundle that reaches this module via boot.ts.
+async function jobSelfHeal(): Promise<string> {
+  const m = await import('@/lib/autonomy')
+  return m.runSelfHeal()
+}
+
+async function jobSelfOptimize(): Promise<string> {
+  const m = await import('@/lib/autonomy')
+  return m.runSelfOptimize()
+}
+
+async function jobSelfUpdate(): Promise<string> {
+  const m = await import('@/lib/autonomy')
+  return m.runSelfUpdate()
+}
+
 async function jobHealth(): Promise<string> {
   const h = sourceHealth()
   await setSetting(
@@ -318,6 +335,9 @@ export function jobDefs(): JobDef[] {
     { name: 'radar-scan', fa: 'اسکن رادار', intervalMs: 15 * 60_000, run: jobRadarScan },
     { name: 'fund-mark', fa: 'ارزش‌گذاری صندوق', intervalMs: 60_000, run: jobFundMark },
     { name: 'bot-trade', fa: 'ربات معامله‌گر', intervalMs: 5 * 60_000, run: jobBotTrade },
+    { name: 'self-heal', fa: 'خودترمیمی', intervalMs: 10 * 60_000, run: jobSelfHeal },
+    { name: 'self-optimize', fa: 'خودبهینه‌سازی', intervalMs: 60 * 60_000, run: jobSelfOptimize },
+    { name: 'self-update', fa: 'خودبروزرسانی', intervalMs: 6 * 60 * 60_000, run: jobSelfUpdate },
     { name: 'brain-train', fa: 'آموزش مغز', intervalMs: 60 * 60_000, run: jobBrainTrain },
     { name: 'equity-snapshot', fa: 'نمودار سرمایه', intervalMs: 60 * 60_000, run: jobEquitySnapshot },
     { name: 'health', fa: 'پایش سلامت', intervalMs: 5 * 60_000, run: jobHealth },
@@ -369,7 +389,7 @@ export async function bootNightshift(): Promise<void> {
     if (typeof t.unref === 'function') t.unref()
     s.timers.push(t)
   }
-  console.log('[CryptoYar] شیفت‌شب فعال شد — ۱۲ وظیفه زمان‌بندی شد')
+  console.log(`[CryptoYar] شیفت‌شب فعال شد — ${faNum(defs.length, 0)} وظیفه زمان‌بندی شد`)
 }
 
 export function isBootstrapped(): boolean {

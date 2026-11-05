@@ -120,4 +120,9 @@ export interface SettingsResp {
   bot: { enabled: 'on' | 'off'; minScore: number; maxOpen: number; cooldownHours: number }
   adminLockEnabled: boolean
   connector: { name: string; phase: number; note: string }
+  autonomy: {
+    heal: { at: number; totalHeals: number; recentActions: string[]; sickNow: string[] } | null
+    optimize: { at: number; sizeMB: number | null; riskBefore: number; riskAfter: number; samples: number; winRate: number; action: string } | null
+    version: { at: number; sha: string; subject: string; updatedCount: number; syncCount: number } | null
+  }
 }

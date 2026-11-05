@@ -24,6 +24,9 @@ const JOBS_FA: Record<string, string> = {
   'radar-scan': 'اسکن رادار',
   'fund-mark': 'ارزش‌گذاری صندوق',
   'bot-trade': 'ربات معامله‌گر',
+  'self-heal': 'خودترمیمی',
+  'self-optimize': 'خودبهینه‌سازی',
+  'self-update': 'خودبروزرسانی',
   'brain-train': 'آموزش مغز',
   'equity-snapshot': 'نمودار سرمایه',
   health: 'پایش سلامت',
@@ -39,6 +42,9 @@ const JOB_INTERVAL_MS: Record<string, number> = {
   'radar-scan': 15 * 60_000,
   'fund-mark': 60_000,
   'bot-trade': 5 * 60_000,
+  'self-heal': 10 * 60_000,
+  'self-optimize': 60 * 60_000,
+  'self-update': 60 * 60_000,
   'brain-train': 60 * 60_000,
   'equity-snapshot': 60 * 60_000,
   health: 5 * 60_000,
@@ -86,6 +92,15 @@ async function main(): Promise<void> {
     db.fundPosition.count({ where: { reasonFa: { startsWith: BOT_PREFIX } } }),
     db.jobLog.findFirst({ where: { job: 'bot-trade' }, orderBy: { startedAt: 'desc' } }),
   ])
+
+  const [healRaw, optRaw, verRaw] = await Promise.all([
+    getSetting('healSnapshot'),
+    getSetting('optimizeSnapshot'),
+    getSetting('versionInfo'),
+  ])
+  const healSnap = healRaw ? (JSON.parse(healRaw) as { totalHeals?: number; recentActions?: string[]; sickNow?: string[] }) : null
+  const optSnap = optRaw ? (JSON.parse(optRaw) as { sizeMB?: number | null; riskBefore?: number; riskAfter?: number; samples?: number; winRate?: number; action?: string }) : null
+  const verSnap = verRaw ? (JSON.parse(verRaw) as { sha?: string; subject?: string; updatedCount?: number; syncCount?: number }) : null
 
   const health = healthRaw ? (JSON.parse(healthRaw) as Record<string, boolean>) : null
   const equityAsc = equityPoints.slice().reverse()
@@ -152,6 +167,30 @@ async function main(): Promise<void> {
           )
           .join('')}
         </table>
+      </div>
+      <div class="card">
+        <h2>لایهٔ خودکار — سامانه خودش را بروزرسانی، ترمیم و بهینه می‌کند</h2>
+        <div class="reason">
+          <b>خودبروزرسانی:</b> ${
+            verSnap?.sha
+              ? `نسخهٔ فعال <b>${esc(verSnap.sha)}</b>${verSnap.subject ? ` — ${esc(verSnap.subject)}` : ''} · ${faNum(verSnap.updatedCount ?? 0, 0)} بروزرسانی و ${faNum(verSnap.syncCount ?? 0, 0)} همگام‌سازی خودکار`
+              : 'در چرخهٔ بعدی ثبت می‌شود'
+          }
+        </div>
+        <div class="reason" style="margin-top:6px">
+          <b>خودترمیمی:</b> ${
+            healSnap
+              ? `${faNum(healSnap.totalHeals ?? 0, 0)} اقدام ترمیم تا امروز${healSnap.recentActions?.length ? ` — آخرین: ${esc(String(healSnap.recentActions[0]))}` : ' — فعلاً نیازی به ترمیم نبوده'}${healSnap.sickNow?.length ? ` · <b class="warn">${faNum(healSnap.sickNow.length, 0)} وظیفهٔ ناسالم: ${esc(healSnap.sickNow.join('، '))}</b>` : ''}`
+              : 'پایش هنوز فعال نشده'
+          }
+        </div>
+        <div class="reason" style="margin-top:6px">
+          <b>خودبهینه‌سازی و رشد:</b> ${
+            optSnap?.action
+              ? `${esc(optSnap.action)}${optSnap.sizeMB ? ` · حجم دیتابیس ${faNum(optSnap.sizeMB, 1)} مگابایت` : ''}`
+              : 'اولین تنظیم خودکار بعد از ۱۰ معاملهٔ ربات انجام می‌شود'
+          }
+        </div>
       </div>
     </div>`
 
@@ -306,7 +345,8 @@ async function main(): Promise<void> {
         <b>رادار فرصت‌ها:</b> سیگنال‌های خرید/فروش با امتیاز، حد ضرر و حد سود؛ «ثبت‌شده در صندوق» یعنی وارد شبیه‌سازی شده.<br>
         <b>صندوق شبیه‌ساز:</b> پوزیشن‌های باز و بسته‌شده با سود/زیان — مثل حساب آزمایشی.<br>
         <b>مغز یادگیرنده:</b> از نتیجهٔ سیگنال‌ها یاد می‌گیرد و وزن‌ها را خودکار تنظیم می‌کند.<br>
-        <b>شیفت‌شب:</b> موتور زمان‌بندی که ۲۴ ساعته بدون شما کار می‌کند.
+        <b>شیفت‌شب:</b> موتور زمان‌بندی که ۲۴ ساعته بدون شما کار می‌کند.<br>
+        <b>لایهٔ خودکار:</b> ربات معامله‌گر خودش معامله می‌کند، خودش را بروزرسانی می‌کند، خطاها را ترمیم می‌کند و ریسک را با عملکردش تنظیم می‌کند.
       </div>
     </div>
     <div class="card">

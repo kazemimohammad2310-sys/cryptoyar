@@ -2,16 +2,33 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ensurePragmas } from '@/lib/db'
 import { ensureBooted } from '@/lib/boot'
 import { keyStatus, KEYS } from '@/lib/env'
-import { getMode, getRiskConfig, getBrainWeights, getBotConfig, setSetting, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
+import { getMode, getRiskConfig, getBrainWeights, getBotConfig, setSetting, getSetting, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
 import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+function parseSnap<T>(raw: string | null): T | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return null
+  }
+}
 
 export async function GET() {
   try {
     await ensurePragmas()
     await ensureBooted()
-    const [mode, risk, weights, bot] = await Promise.all([getMode(), getRiskConfig(), getBrainWeights(), getBotConfig()])
+    const [mode, risk, weights, bot, healRaw, optRaw, verRaw] = await Promise.all([
+      getMode(),
+      getRiskConfig(),
+      getBrainWeights(),
+      getBotConfig(),
+      getSetting('healSnapshot'),
+      getSetting('optimizeSnapshot'),
+      getSetting('versionInfo'),
+    ])
     return NextResponse.json({
       mode,
       keys: keyStatus(),
@@ -23,6 +40,11 @@ export async function GET() {
         name: 'Toobit',
         phase: 2,
         note: 'اتصال فاز ۲ — آمادهٔ فعال‌سازی',
+      },
+      autonomy: {
+        heal: parseSnap<{ at: number; totalHeals: number; recentActions: string[]; sickNow: string[] }>(healRaw),
+        optimize: parseSnap<{ at: number; sizeMB: number | null; riskBefore: number; riskAfter: number; samples: number; winRate: number; action: string }>(optRaw),
+        version: parseSnap<{ at: number; sha: string; subject: string; updatedCount: number; syncCount: number }>(verRaw),
       },
     })
   } catch (e) {
