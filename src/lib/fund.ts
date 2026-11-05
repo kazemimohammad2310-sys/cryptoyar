@@ -1,8 +1,9 @@
 import { db } from '@/lib/db'
-import { getRiskConfig } from '@/lib/settings'
+import { getRiskConfig, getFuturesConfig } from '@/lib/settings'
 import { loadCandles } from '@/lib/candles'
 import { atr } from '@/lib/indicators'
 import { STRATEGY_FA } from '@/lib/brain'
+import type { FundamentalLevel } from '@/lib/fundamentals'
 
 // ─── Paper Fund (§6/§7) — all risk rules enforced SERVER-SIDE ───
 // Corrections applied: explicit short-PnL accounting, hourly equity snapshots,
@@ -16,9 +17,34 @@ export interface OpenParams {
   reasonFa?: string
   entryPrice?: number // optional override (uses latest ticker price by default)
   qty?: number // optional manual qty (still risk-capped)
+  leverage?: number // optional override — otherwise auto per futures config
+  fundamentalLevel?: FundamentalLevel | null // از ربات: سطح بنیاد برای اهرم متناسب
 }
 
 export class FundError extends Error {}
+
+// ─── فیوچرز (paper) ───
+// اهرم فقط مارجین و ROE و لیکوییدیشن را تغییر می‌دهد؛ سود/زیان مطلق همان qty × حرکت قیمت است.
+// اهرم متناسب (حالت auto): لیکوییدیشن حداقل ‎۲٫۵ برابرِ‌ دورتر از حد ضرر می‌ماند + سقف بنیادی:
+//   بنیاد قوی → تا سقف تنظیمات | متوسط → تا ×۳ | ضعیف → ×۱ (بدون اهرم)
+
+const LIQ_MAINT_BUFFER = 0.95 // ۵٪ بافر نگهداشت مارجین (ساده‌سازی صندوق شبیه‌ساز)
+const LIQ_SAFETY = 2.5 // فاصلهٔ لیکوییدیشن ≥ این‌ضریب × فاصلهٔ حد ضرر
+
+/** قیمت لیکوییدیشن تقریبی (فقط برای اهرم > ۱) */
+export function liquidationPrice(p: { side: string; entryPrice: number; leverage: number }): number {
+  const lev = Math.max(1, p.leverage || 1)
+  const dist = (LIQ_MAINT_BUFFER / lev) * p.entryPrice
+  return p.side === 'long' ? p.entryPrice - dist : p.entryPrice + dist
+}
+
+/** بازده روی مارجین (ROE) بر حسب ٪ */
+export function roeOf(p: { side: string; qty: number; entryPrice: number; markPrice: number; leverage: number; marginUsdt: number }): number {
+  const margin = p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1)
+  if (margin <= 0) return 0
+  const pnl = p.side === 'long' ? (p.markPrice - p.entryPrice) * p.qty : (p.entryPrice - p.markPrice) * p.qty
+  return (pnl / margin) * 100
+}
 
 export async function latestPrice(symbol: string): Promise<number | null> {
   const t = await db.tickerSnapshot.findFirst({ where: { symbol }, orderBy: { ts: 'desc' }, select: { price: true } })
@@ -73,8 +99,8 @@ export async function isCircuitBreakerTripped(): Promise<{ tripped: boolean; dra
   return { tripped: dd >= cfg.dailyDrawdownHaltPct, drawdownPct: dd, limitPct: cfg.dailyDrawdownHaltPct }
 }
 
-/** Open a paper position with full risk validation (§7). */
-export async function openPosition(params: OpenParams): Promise<{ positionId: number; qty: number; entry: number; stop: number; target: number }> {
+/** Open a paper position with full risk validation (§7) + futures leverage. */
+export async function openPosition(params: OpenParams): Promise<{ positionId: number; qty: number; entry: number; stop: number; target: number; leverage: number; marginUsdt: number }> {
   const cfg = await getRiskConfig()
 
   // 7.1 max concurrent positions
@@ -111,6 +137,22 @@ export async function openPosition(params: OpenParams): Promise<{ positionId: nu
   }
   const finalNotional = qty * entry
 
+  // ─── فیوچرز: انتخاب اهرم متناسب (§7-futures) ───
+  const fut = await getFuturesConfig()
+  const clampLev = (n: number): number => Math.min(fut.maxLev, Math.max(1, Math.round(n * 10) / 10))
+  let leverage = 1
+  if (params.leverage && Number.isFinite(params.leverage) && params.leverage > 1) {
+    leverage = clampLev(params.leverage) // override دستی/ربات — باز هم سقف مطلق
+  } else if (fut.mode === 'fixed') {
+    leverage = fut.fixedLev
+  } else {
+    // اهرم متناسب: لیکوییدیشن حداقل ۲٫۵ برابر دورتر از حد ضرر + سقف بر اساس بنیاد
+    const levByRisk = (LIQ_MAINT_BUFFER / (slPct * LIQ_SAFETY))
+    const levByFund = params.fundamentalLevel === 'strong' ? fut.maxLev : params.fundamentalLevel === 'mid' ? 3 : 1
+    leverage = clampLev(Math.min(levByRisk, levByFund))
+  }
+  const marginUsdt = finalNotional / leverage
+
   // duplicate guard: same symbol open position
   const dup = await db.fundPosition.findFirst({ where: { symbol: params.symbol, status: 'open' }, select: { id: true } })
   if (dup) throw new FundError('برای این نماد قبلاً پوزیشن باز دارید')
@@ -139,6 +181,8 @@ export async function openPosition(params: OpenParams): Promise<{ positionId: nu
       markPrice: entry,
       stopLoss: stop,
       takeProfit: target,
+      leverage,
+      marginUsdt,
       strategy,
       reasonFa,
       sourceSignalId: signalId,
@@ -151,11 +195,10 @@ export async function openPosition(params: OpenParams): Promise<{ positionId: nu
       side: params.side,
       qty,
       price: entry,
-      reasonFa: `${reasonFa} — حجم ${qty.toFixed(6)}، حد ضرر ${stop.toFixed(6)}، هدف ${target.toFixed(6)}`,
+      reasonFa: `${reasonFa} — فیوچرز اهرم ×${leverage % 1 === 0 ? leverage.toFixed(0) : leverage.toFixed(1)}، مارجین ${marginUsdt.toFixed(2)} USDT، حد ضرر ${stop.toFixed(6)}، هدف ${target.toFixed(6)}`,
     },
   })
-  void finalNotional
-  return { positionId: pos.id, qty, entry, stop, target }
+  return { positionId: pos.id, qty, entry, stop, target, leverage, marginUsdt }
 }
 
 /** Close a position, realize PnL, write order + equity point. */
@@ -188,6 +231,17 @@ export async function markToMarket(): Promise<{ closed: number; details: string[
     if (price !== p.markPrice) {
       await db.fundPosition.update({ where: { id: p.id }, data: { markPrice: price } })
     }
+    // فیوچرز: لیکوییدیشن به‌عنوان سپر نهایی (معمولاً حد ضرر زودتر فعال می‌شود)
+    if ((p.leverage ?? 1) > 1) {
+      const liq = liquidationPrice(p)
+      const liqHit = p.side === 'long' ? price <= liq : price >= liq
+      if (liqHit) {
+        const r = await closePosition(p.id, 'لیکوییدیشن — مارجین از دست رفت (سپر نهایی)', liq)
+        closed++
+        details.push(`${p.symbol}: لیکوییدیشن ×${p.leverage.toFixed(0)} (${r.pnlUsdt.toFixed(2)} USDT)`)
+        continue
+      }
+    }
     const hitSl = p.side === 'long' ? price <= p.stopLoss : price >= p.stopLoss
     const hitTp = p.side === 'long' ? price >= p.takeProfit : price <= p.takeProfit
     if (hitSl) {
@@ -217,6 +271,14 @@ export interface FundStats {
   closedCount: number
   perStrategy: { strategy: string; fa: string; count: number; pnlUsdt: number; winRate: number }[]
   circuitBreaker: { tripped: boolean; drawdownPct: number; limitPct: number }
+  futures: {
+    marginUsed: number // مجموع مارجین درگیر پوزیشن‌های باز
+    notionalExposure: number // مجموع حجم اسمی
+    avgLeverage: number // اهرم میانگین وزنی با حجم اسمی
+    maxLeverage: number // اهرم بیشینهٔ باز
+    leveragedCount: number // تعداد پوزیشن‌های اهرم‌دار (‎>×۱)
+    unrealizedRoe: number // ROE موزون کل روی مارجین
+  }
 }
 
 export async function computeStats(): Promise<FundStats> {
@@ -262,6 +324,16 @@ export async function computeStats(): Promise<FundStats> {
   const best = closed.length ? closed.reduce((a, p) => ((p.pnlUsdt ?? 0) > (a.pnlUsdt ?? 0) ? p : a)) : null
   const worst = closed.length ? closed.reduce((a, p) => ((p.pnlUsdt ?? 0) < (a.pnlUsdt ?? 0) ? p : a)) : null
 
+  // ─── فیوچرز: تجمیع مارجین/اهرم پوزیشن‌های باز ───
+  const marginUsed = open.reduce((a, p) => a + (p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1)), 0)
+  const notionalExposure = open.reduce((a, p) => a + p.entryPrice * p.qty, 0)
+  const avgLeverage = notionalExposure > 0
+    ? open.reduce((a, p) => a + (p.leverage || 1) * p.entryPrice * p.qty, 0) / notionalExposure
+    : 1
+  const maxLeverage = open.reduce((a, p) => Math.max(a, p.leverage || 1), 1)
+  const leveragedCount = open.filter((p) => (p.leverage || 1) > 1).length
+  const unrealizedRoe = marginUsed > 0 ? (unrealized / marginUsed) * 100 : 0
+
   return {
     equity,
     realizedPnl: realized,
@@ -276,6 +348,7 @@ export async function computeStats(): Promise<FundStats> {
     closedCount: closed.length,
     perStrategy,
     circuitBreaker: await isCircuitBreakerTripped(),
+    futures: { marginUsed, notionalExposure, avgLeverage, maxLeverage, leveragedCount, unrealizedRoe },
   }
 }
 

@@ -4,8 +4,8 @@
 
 import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'fs'
 import { db, ensurePragmas } from '@/lib/db'
-import { getSetting, getBrainWeights, getBotConfig, type FeatureKey } from '@/lib/settings'
-import { currentEquity } from '@/lib/fund'
+import { getSetting, getBrainWeights, getBotConfig, getFuturesConfig, type FeatureKey } from '@/lib/settings'
+import { currentEquity, liquidationPrice, roeOf } from '@/lib/fund'
 import { runSelfTest, STRATEGY_FA as STRATEGY_FA_LOCAL } from '@/lib/brain'
 import { BOT_PREFIX } from '@/lib/autotrader'
 import { computeFundamentals, faBigUsd, type FundamentalRow } from '@/lib/fundamentals'
@@ -73,10 +73,11 @@ async function main(): Promise<void> {
   )
   const recentLogs = await db.jobLog.findMany({ orderBy: { startedAt: 'desc' }, take: 12 })
 
-  const [healthRaw, weights, bot, equityNow, equityPoints, positions, closedPositions, signals, coins, candleCount, selfTest, sampleTotal, sampleEvaluated, sampleWins, closedCount, botOpenCount, botTotalCount, lastBotLog] = await Promise.all([
+  const [healthRaw, weights, bot, futures, equityNow, equityPoints, positions, closedPositions, signals, coins, candleCount, selfTest, sampleTotal, sampleEvaluated, sampleWins, closedCount, botOpenCount, botTotalCount, lastBotLog] = await Promise.all([
     getSetting('healthSnapshot'),
     getBrainWeights(),
     getBotConfig(),
+    getFuturesConfig(),
     currentEquity().catch(() => 0),
     db.equityPoint.findMany({ orderBy: { ts: 'desc' }, take: 48 }),
     db.fundPosition.findMany({ where: { status: 'open' } }),
@@ -122,6 +123,14 @@ async function main(): Promise<void> {
     const qty = p.qty || 0
     return s + dir * qty * ((p.markPrice || p.entryPrice) - p.entryPrice)
   }, 0)
+
+  // ─── فیوچرز: تجمیع مارجین/اهرم پوزیشن‌های باز ───
+  const futMargin = positions.reduce((a, p) => a + (p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1)), 0)
+  const futNotional = positions.reduce((a, p) => a + p.entryPrice * p.qty, 0)
+  const futAvgLev = futNotional > 0 ? positions.reduce((a, p) => a + (p.leverage || 1) * p.entryPrice * p.qty, 0) / futNotional : 1
+  const futMaxLev = positions.reduce((a, p) => Math.max(a, p.leverage || 1), 1)
+  const futLevCount = positions.filter((p) => (p.leverage || 1) > 1).length
+  const futRoe = futMargin > 0 ? (unrealized / futMargin) * 100 : 0
   const realizedSum = closedPositions.reduce((s, p) => s + (p.pnlUsdt ?? 0), 0)
   const winRate = sampleEvaluated > 0 ? sampleWins / sampleEvaluated : null
 
@@ -309,11 +318,22 @@ async function main(): Promise<void> {
       <div class="kpi"><span>پوزیشن‌های ربات</span><b>${faNum(botOpenCount, 0)} باز / ${faNum(botTotalCount, 0)} کل</b></div>
     </div>
     <div class="card">
+      <h2>فیوچرز — مارجین و اهرم (شبیه‌سازی)</h2>
+      <div class="kpis" style="margin:0">
+        <div class="kpi"><span>مارجین درگیر</span><b>${faNum(futMargin, 2)} USDT</b></div>
+        <div class="kpi"><span>اهرم میانگین / بیشینه</span><b>×${faNum(futAvgLev, 1)} / ×${faNum(futMaxLev, 0)}</b></div>
+        <div class="kpi"><span>ROE باز روی مارجین</span><b class="${futRoe >= 0 ? 'up' : 'down'}">${faPct(futRoe, 1)}</b></div>
+        <div class="kpi"><span>حجم اسمی</span><b>${faNum(futNotional, 0)} USDT</b></div>
+      </div>
+      <div class="reason" style="margin-top:8px">حالت اهرم: ${futures.mode === 'auto' ? '<b class="up">خودکار — متناسب با ریسک، نوسان و بنیاد هر ارز</b>' : `<b class="warn">ثابت ×${faNum(futures.fixedLev, 0)}</b>`} · سقف اهرم: ×${faNum(futures.maxLev, 0)} · دروازهٔ استادی: ${futures.expertGate === 'on' ? '<b class="up">روشن</b>' : '<b class="down">خاموش</b>'} · پوزیشن اهرم‌دار: ${faNum(futLevCount, 0)} — سقف اهرم از اپ (تب تنظیمات) قابل تغییر است.</div>
+    </div>
+    <div class="card">
       <h2>ربات معامله‌گر</h2>
       <div class="reason">
         وضعیت: <b class="${bot.enabled === 'on' ? 'up' : 'down'}">${bot.enabled === 'on' ? 'روشن — خودش از سیگنال‌های قوی معامله می‌کند' : 'خاموش — فقط ثبت دستی'}</b>
         · حداقل امتیاز ورود: ${faNum(bot.minScore, 0)} · سقف پوزیشن ربات: ${faNum(bot.maxOpen, 0)} · خنک‌شدن پس از ضرر: ${faNum(bot.cooldownHours, 0)} ساعت
       </div>
+      <div class="reason" style="margin-top:6px">تحلیل استادی: پیش از هر ورود، بنیاد ارز، اشباع RSI، نوسان ATR، فاندینگ ازدحام و روند ۴ساعته (MTF) بررسی می‌شود؛ همگرایی ۹ فاکتور تکنیکال شمرده می‌شود و اهرم هر معامله با بنیاد همان ارز تنظیم می‌گردد (ضعیف بدون اهرم، متوسط تا ×۳، قوی تا سقف).</div>
       <div class="reason" style="margin-top:6px">قوانین مدیریت: بعد از سود +۱٪ حد ضرر به سر‌به‌سر می‌رود، بعد از +۱٫۶٪ متحرک می‌شود، و معاملهٔ بی‌تحرک بعد از ۷۲ ساعت بسته می‌شود.</div>
       <div class="reason" style="margin-top:6px">آخرین فعالیت ربات: ${
         lastBotLog
@@ -322,13 +342,19 @@ async function main(): Promise<void> {
       }</div>
     </div>
     <div class="card">
-      <h2>پوزیشن‌های باز</h2>
+      <h2>پوزیشن‌های باز فیوچرز</h2>
       ${
         positions.length
-          ? `<div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>ورود</th><th>فعلی</th><th>حد ضرر</th><th>حد سود</th><th>سود</th></tr>
+          ? `<div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>اهرم</th><th>مارجین</th><th>ورود</th><th>فعلی</th><th>حد ضرر</th><th>لیکوییدیشن</th><th>حد سود</th><th>ROE</th><th>سود</th></tr>
       ${positions
         .map(
-          (p) => `<tr><td>${esc(p.symbol.replace('USDT', ''))}/USDT</td><td>${sideFa(p.side)}</td><td>${faNum(p.entryPrice, 4)}</td><td>${faNum(p.markPrice, 4)}</td><td class="down">${faNum(p.stopLoss, 4)}</td><td class="up">${faNum(p.takeProfit, 4)}</td><td class="${(p.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(p.pnlPct ?? 0, 2)}</td></tr>`,
+          (p) => {
+            const lev = p.leverage || 1
+            const margin = p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, lev)
+            const roe = roeOf(p)
+            const liq = liquidationPrice(p)
+            return `<tr><td>${esc(p.symbol.replace('USDT', ''))}/USDT</td><td>${sideFa(p.side)}</td><td><b class="${lev > 1 ? 'warn' : 'sub'}">×${faNum(lev, lev % 1 === 0 ? 0 : 1)}</b></td><td>${faNum(margin, 2)}</td><td>${faNum(p.entryPrice, 4)}</td><td>${faNum(p.markPrice, 4)}</td><td class="down">${faNum(p.stopLoss, 4)}</td><td class="sub">${lev > 1 ? faNum(liq, 4) : '—'}</td><td class="up">${faNum(p.takeProfit, 4)}</td><td class="${roe >= 0 ? 'up' : 'down'}">${faPct(roe, 1)}</td><td class="${(p.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(p.pnlPct ?? 0, 2)}</td></tr>`
+          },
         )
         .join('')}</table></div>`
           : '<div class="reason">پوزیشن بازی وجود ندارد — رادار هر ۱۵ دقیقه دنبال فرصت است.</div>'
@@ -445,10 +471,10 @@ async function main(): Promise<void> {
         <b>داشبورد:</b> خلاصهٔ کل سامانه — دارایی، سلامت منابع داده و وضعیت وظایف.<br>
         <b>رادار فرصت‌ها:</b> سیگنال‌های خرید/فروش با امتیاز، حد ضرر و حد سود + نشان وضعیت بنیادی همان ارز؛ «ثبت‌شده در صندوق» یعنی وارد شبیه‌سازی شده.<br>
         <b>ارزها:</b> برای هر یک از ۵۰ ارزِ تحت پوشش، امتیاز و وضعیت بنیادی (رتبه بازار، نقدشوندگی، نوسان، روند، فاندینگ) به‌همراه جزییات کامل: قیمت، حجم، ارزش بازار، بازده ۷ و ۳۰ روزه و دلایل فارسی — روی هر ردیف بزنید تا باز شود.<br>
-        <b>صندوق شبیه‌ساز:</b> پوزیشن‌های باز و بسته‌شده با سود/زیان — مثل حساب آزمایشی.<br>
+        <b>صندوق شبیه‌ساز (فیوچرز):</b> پوزیشن‌های خرید/فروش با اهرم متناسب، مارجین، ROE و قیمت لیکوییدیشن — مثل حساب فیوچرز آزمایشی؛ سقف اهرم از تب تنظیمات اپ قابل تغییر است.<br>
         <b>مغز یادگیرنده:</b> از نتیجهٔ سیگنال‌ها یاد می‌گیرد و وزن‌ها را خودکار تنظیم می‌کند.<br>
         <b>شیفت‌شب:</b> موتور زمان‌بندی که ۲۴ ساعته بدون شما کار می‌کند.<br>
-        <b>لایهٔ خودکار:</b> ربات معامله‌گر خودش معامله می‌کند، خودش را بروزرسانی می‌کند، خطاها را ترمیم می‌کند و ریسک را با عملکردش تنظیم می‌کند.
+        <b>لایهٔ خودکار:</b> ربات معامله‌گر با دروازهٔ استادی (بنیاد + تکنیکال ۹ فاکتور) خودش معامله فیوچرز با اهرم متناسب باز می‌کند، خودش را بروزرسانی می‌کند، خطاها را ترمیم می‌کند و ریسک را با عملکردش تنظیم می‌کند.
       </div>
     </div>
     <div class="card">
@@ -650,7 +676,7 @@ self.addEventListener('fetch',function(e){
         unrealized,
         coins,
         candleCount,
-        positions: positions.map((p) => ({ symbol: p.symbol, side: p.side, pnlPct: p.pnlPct })),
+        positions: positions.map((p) => ({ symbol: p.symbol, side: p.side, pnlPct: p.pnlPct, leverage: p.leverage || 1, marginUsdt: p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1) })),
         signals: signals.map((s) => ({ symbol: s.symbol, side: s.side, score: s.score, strategy: s.strategy, status: s.status })),
         fundamentals: fundSnap
           ? {

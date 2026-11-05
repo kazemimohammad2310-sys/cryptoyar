@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bot, KeyRound, Lock, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Bot, KeyRound, Lock, RefreshCw, ShieldCheck, Zap } from 'lucide-react'
 import { getAdminToken, postJson, setAdminToken, usePolling } from '@/components/cryptoyar/usePolling'
 import { ErrorNote, FEATURE_FA, SectionTitle, SkeletonBlock } from '@/components/cryptoyar/kit'
 import { faNum } from '@/lib/fa'
@@ -55,6 +55,43 @@ export function SettingsTab() {
       setBotMsg(e instanceof Error ? e.message : 'خطا در تغییر وضعیت ربات')
     } finally {
       setBotToggling(false)
+    }
+  }
+
+  // ─── فیوچرز: اهرم قابل تنظیم (مقدار اولیه از سرور، پس از لود) ───
+  const [maxLev, setMaxLev] = useState('')
+  const [fixedLev, setFixedLev] = useState('')
+  const [futMsg, setFutMsg] = useState('')
+  const [futBusy, setFutBusy] = useState(false)
+  useEffect(() => {
+    if (settings.data) {
+      setMaxLev(String(settings.data.futures.maxLev))
+      setFixedLev(String(settings.data.futures.fixedLev))
+    }
+  }, [settings.data])
+
+  async function saveFutures(patch: {
+    futuresLeverageMode?: 'auto' | 'fixed'
+    futuresMaxLeverage?: number
+    futuresFixedLeverage?: number
+    botExpertGate?: 'on' | 'off'
+  }): Promise<void> {
+    setFutBusy(true)
+    setFutMsg('')
+    try {
+      const r = await postJson<{ ok: boolean; message?: string }>('/api/settings', patch)
+      setFutMsg(r.message ?? 'ثبت شد')
+      settings.refresh()
+    } catch (e) {
+      setFutMsg(
+        e instanceof Error && e.message.includes('توکن')
+          ? 'تغییر اهرم به توکن مدیریت نیاز دارد — اول توکن را در بخش پایین ذخیره کنید.'
+          : e instanceof Error
+            ? e.message
+            : 'خطا در ثبت اهرم',
+      )
+    } finally {
+      setFutBusy(false)
     }
   }
 
@@ -124,6 +161,100 @@ export function SettingsTab() {
             {botMsg ? <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs">{botMsg}</p> : null}
             <p className="text-[11px] text-muted-foreground">
               تغییر وضعیت ربات به توکن مدیریت نیاز دارد — اول توکن را در بخش پایین ذخیره کنید.
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      {/* ─── فیوچرز و اهرم ─── */}
+      <section>
+        <SectionTitle icon={<Zap className="h-4 w-4" />}>فیوچرز و اهرم (شبیه‌سازی)</SectionTitle>
+        {settings.loading ? (
+          <SkeletonBlock className="h-24" />
+        ) : d ? (
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold">حالت اهرم:</span>
+              <button
+                type="button"
+                onClick={() => void saveFutures({ futuresLeverageMode: 'auto' })}
+                disabled={futBusy}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold ${d.futures.mode === 'auto' ? 'bg-primary text-primary-foreground' : 'border hover:bg-muted'}`}
+              >
+                خودکار (متناسب)
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveFutures({ futuresLeverageMode: 'fixed' })}
+                disabled={futBusy}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold ${d.futures.mode === 'fixed' ? 'bg-primary text-primary-foreground' : 'border hover:bg-muted'}`}
+              >
+                ثابت
+              </button>
+              <span className="text-xs text-muted-foreground">
+                الان: {d.futures.mode === 'auto' ? 'اهرم هر معامله با ریسک، نوسان و بنیاد همان ارز تنظیم می‌شود' : `همهٔ معامله‌ها با اهرم ثابت ×${faNum(d.futures.fixedLev, 0)}`}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-xs">
+                <span className="mb-1 block text-muted-foreground">سقف اهرم (×۱ تا ×۲۵)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={25}
+                  value={maxLev}
+                  onChange={(e) => setMaxLev(e.target.value)}
+                  dir="ltr"
+                  className="w-24 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void saveFutures({ futuresMaxLeverage: Number(maxLev) })}
+                disabled={futBusy || !maxLev}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                ذخیرهٔ سقف
+              </button>
+              <label className="text-xs">
+                <span className="mb-1 block text-muted-foreground">اهرم ثابت (فقط حالت ثابت)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={25}
+                  value={fixedLev}
+                  onChange={(e) => setFixedLev(e.target.value)}
+                  dir="ltr"
+                  className="w-24 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void saveFutures({ futuresFixedLeverage: Number(fixedLev) })}
+                disabled={futBusy || !fixedLev}
+                className="rounded-lg border px-4 py-2 text-sm font-bold hover:bg-muted disabled:opacity-50"
+              >
+                ذخیرهٔ ثابت
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs leading-6 text-muted-foreground">
+                دروازهٔ استادی ربات: {d.futures.expertGate === 'on' ? <b className="cy-up">روشن</b> : <b className="cy-down">خاموش</b>} — پیش از هر ورود،
+                بنیاد، اشباع RSI، نوسان ATR، فاندینگ ازدحام و روند ۴ساعته بررسی می‌شود و همگرایی ۹ فاکتور ثبت می‌گردد.
+              </p>
+              <button
+                type="button"
+                onClick={() => void saveFutures({ botExpertGate: d.futures.expertGate === 'on' ? 'off' : 'on' })}
+                disabled={futBusy}
+                className="rounded-lg border px-3 py-1.5 text-xs font-bold hover:bg-muted disabled:opacity-50"
+              >
+                {d.futures.expertGate === 'on' ? 'خاموش کردن دروازهٔ استادی' : 'روشن کردن دروازهٔ استادی'}
+              </button>
+            </div>
+            {futMsg ? <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs">{futMsg}</p> : null}
+            <p className="text-[11px] text-muted-foreground">
+              قاعدهٔ حرفه‌ای: اهرم زیاد فقط با بنیاد قوی و حد ضرر نزدیک مجاز است (لیکوییدیشن همیشه حداقل ۲٫۵ برابر دورتر از
+              حد ضرر می‌ماند). بنیاد ضعیف = بدون اهرم، متوسط = تا ×۳، قوی = تا سقفی که همین‌جا تعیین می‌کنید.
             </p>
           </div>
         ) : null}

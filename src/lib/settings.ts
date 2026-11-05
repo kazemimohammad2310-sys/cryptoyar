@@ -37,6 +37,11 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   botMinScore: '65',
   botMaxOpen: '6',
   botCooldownHours: '6',
+  // futures (paper) — اهرم متناسب و قابل تنظیم
+  futuresLeverageMode: 'auto', // auto = اهرم متناسب با ریسک/بنیاد | fixed = ثابت
+  futuresMaxLeverage: '10', // سقف مطلق اهرم
+  futuresFixedLeverage: '3', // اهرم ثابت وقتی حالت fixed است
+  botExpertGate: 'on', // دروازهٔ استادی: فیلترهای حرفه‌ای پیش از ورود
   // bookkeeping
   selftestLastDate: '',
   pruneLastDate: '',
@@ -136,4 +141,21 @@ export async function getRiskConfig() {
     getSetting('dailyDrawdownHaltPct').then((v) => Number(v ?? 5)),
   ])
   return { equity, maxPositions, riskPerTradePct, maxPositionPct, dailyDrawdownHaltPct }
+}
+
+/** فیوچرز (paper): پیکربندی اهرم — قابل تنظیم از تب تنظیمات (توکن مدیریت) */
+export async function getFuturesConfig() {
+  const [mode, maxLev, fixedLev, expertGate] = await Promise.all([
+    getSetting('futuresLeverageMode').then((v) => (v === 'fixed' ? 'fixed' : 'auto')),
+    getSetting('futuresMaxLeverage').then((v) => {
+      const n = Number(v ?? 10)
+      return Number.isFinite(n) ? Math.min(25, Math.max(1, Math.round(n))) : 10
+    }),
+    getSetting('futuresFixedLeverage').then((v) => {
+      const n = Number(v ?? 3)
+      return Number.isFinite(n) ? Math.min(25, Math.max(1, Math.round(n))) : 3
+    }),
+    getSetting('botExpertGate').then((v) => (v === 'off' ? 'off' : 'on')),
+  ])
+  return { mode, maxLev, fixedLev: Math.min(fixedLev, maxLev), expertGate } as const
 }

@@ -48,6 +48,10 @@ export interface FundPositionRow {
   markPrice: number
   stopLoss: number
   takeProfit: number
+  leverage: number
+  marginUsdt: number
+  liquidationPrice: number
+  roe: number
   strategy: string
   reasonFa: string
   pnlUsdt: number
@@ -70,6 +74,14 @@ export interface FundResp {
     closedCount: number
     perStrategy: { strategy: string; fa: string; count: number; pnlUsdt: number; winRate: number }[]
     circuitBreaker: { tripped: boolean; drawdownPct: number; limitPct: number }
+    futures: {
+      marginUsed: number
+      notionalExposure: number
+      avgLeverage: number
+      maxLeverage: number
+      leveragedCount: number
+      unrealizedRoe: number
+    }
   }
   equityNow: number
   equityCurve: { ts: number; v: number }[]
@@ -118,6 +130,7 @@ export interface SettingsResp {
   risk: { equity: number; maxPositions: number; riskPerTradePct: number; maxPositionPct: number; dailyDrawdownHaltPct: number }
   weights: { key: string; weight: number }[]
   bot: { enabled: 'on' | 'off'; minScore: number; maxOpen: number; cooldownHours: number }
+  futures: { mode: 'auto' | 'fixed'; maxLev: number; fixedLev: number; expertGate: 'on' | 'off' }
   adminLockEnabled: boolean
   connector: { name: string; phase: number; note: string }
   autonomy: {

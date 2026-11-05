@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Wallet } from 'lucide-react'
+import { Wallet, Zap } from 'lucide-react'
 import { usePolling, postJson } from '@/components/cryptoyar/usePolling'
 import { EmptyNote, ErrorNote, PnlText, SectionTitle, SideChip, SkeletonBlock, Sparkline, StatCard } from '@/components/cryptoyar/kit'
 import { faDateTime, faNum, faPrice, faTimeAgo } from '@/lib/fa'
@@ -83,6 +83,26 @@ export function FundTab() {
         </div>
       </section>
 
+      {/* ─── فیوچرز: مارجین و اهرم ─── */}
+      {s ? (
+        <section>
+          <SectionTitle icon={<Zap className="h-4 w-4" />}>
+            فیوچرز — مارجین و اهرم (قابل تنظیم از تب تنظیمات)
+          </SectionTitle>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="مارجین درگیر" tone="gold" value={`${faNum(s.futures.marginUsed, 2)} USDT`} sub={`حجم اسمی ${faNum(s.futures.notionalExposure, 0)} USDT`} />
+            <StatCard label="اهرم میانگین" value={`×${faNum(s.futures.avgLeverage, 1)}`} sub={`بیشینهٔ باز: ×${faNum(s.futures.maxLeverage, 0)}`} />
+            <StatCard
+              label="ROE باز"
+              value={<PnlText usdt={null} pct={s.futures.unrealizedRoe} />}
+              tone={s.futures.unrealizedRoe >= 0 ? 'up' : 'down'}
+              sub={`${faNum(s.futures.leveragedCount, 0)} پوزیشن اهرم‌دار`}
+            />
+            <StatCard label="پوزیشن‌های باز" value={faNum(fund.data?.positions.length ?? 0, 0)} sub="لیکوییدیشن هر پوزیشن در جدول زیر" />
+          </div>
+        </section>
+      ) : null}
+
       {closeMsg ? (
         <div className={`rounded-xl px-4 py-3 text-sm ${closeMsg.ok ? 'bg-[color:var(--cy-up)]/10 cy-up' : 'bg-[color:var(--cy-down)]/10 cy-down'}`}>
           {closeMsg.text}
@@ -91,21 +111,25 @@ export function FundTab() {
 
       {/* positions */}
       <section>
-        <SectionTitle>پوزیشن‌های باز (خرید و فروش با هم)</SectionTitle>
+        <SectionTitle>پوزیشن‌های باز فیوچرز (خرید و فروش با هم)</SectionTitle>
         {fund.loading ? (
           <SkeletonBlock className="h-40" />
         ) : fund.data && fund.data.positions.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th className="px-3 py-2 text-right font-medium">نماد</th>
                   <th className="px-3 py-2 text-right font-medium">جهت</th>
+                  <th className="px-3 py-2 text-center font-medium">اهرم</th>
+                  <th className="px-3 py-2 text-right font-medium">مارجین</th>
                   <th className="px-3 py-2 text-right font-medium">ورود</th>
                   <th className="px-3 py-2 text-right font-medium">لحظه‌ای</th>
                   <th className="px-3 py-2 text-right font-medium">حد ضرر</th>
+                  <th className="px-3 py-2 text-right font-medium">لیکوییدیشن</th>
                   <th className="px-3 py-2 text-right font-medium">هدف</th>
                   <th className="px-3 py-2 text-right font-medium">سود/زیان</th>
+                  <th className="px-3 py-2 text-right font-medium">ROE</th>
                   <th className="px-3 py-2 text-center font-medium">عملیات</th>
                 </tr>
               </thead>
@@ -116,13 +140,21 @@ export function FundTab() {
                     <td className="px-3 py-2.5">
                       <SideChip side={p.side} />
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${p.leverage > 1 ? 'bg-primary/15 text-primary' : 'bg-secondary text-secondary-foreground'}`}>
+                        ×{faNum(p.leverage, p.leverage % 1 === 0 ? 0 : 1)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 cy-num">{faNum(p.marginUsdt, 2)}</td>
                     <td className="px-3 py-2.5 cy-num">{faPrice(p.entryPrice)}</td>
                     <td className="px-3 py-2.5 cy-num">{faPrice(p.markPrice)}</td>
                     <td className="px-3 py-2.5 cy-num cy-down">{faPrice(p.stopLoss)}</td>
+                    <td className="px-3 py-2.5 cy-num text-[color:var(--cy-down)]/70">{p.leverage > 1 ? faPrice(p.liquidationPrice) : '—'}</td>
                     <td className="px-3 py-2.5 cy-num cy-up">{faPrice(p.takeProfit)}</td>
                     <td className="px-3 py-2.5">
                       <PnlText usdt={p.pnlUsdt} pct={p.pnlPct} />
                     </td>
+                    <td className={`px-3 py-2.5 cy-num ${p.roe >= 0 ? 'cy-up' : 'cy-down'}`}>{faNum(p.roe, 1)}٪</td>
                     <td className="px-3 py-2.5 text-center">
                       <button
                         type="button"
@@ -141,6 +173,11 @@ export function FundTab() {
         ) : (
           <EmptyNote>پوزیشن بازی وجود ندارد — از تب رادار یک فرصت را در صندوق ثبت کنید.</EmptyNote>
         )}
+        <p className="mt-2 px-1 text-[11px] leading-5 text-muted-foreground">
+          در فیوچرز، سود/زیان همان حرکت قیمت × حجم است؛ اهرم مارجین و ROE را چند برابر می‌کند. حد ضرر معمولاً پیش از
+          لیکوییدیشن فعال می‌شود — اهرم هر معامله با ریسک، نوسان و بنیاد همان ارز به‌صورت خودکار تنظیم می‌شود و سقف آن از تب
+          «تنظیمات» قابل تغییر است.
+        </p>
       </section>
 
       {/* orders log */}

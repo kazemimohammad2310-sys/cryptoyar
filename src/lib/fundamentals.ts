@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/settings'
 import { atr, ema, rsi, type CandleRow } from '@/lib/indicators'
-import { faNum, faPct } from '@/lib/fa'
+import { faNum, faPct, faBigUsd } from '@/lib/fa'
 
 // ─── Fundamentals: وضعیت بنیادی هر ارز — فقط از داده‌های محلی (بدون تماس API اضافه) ───
 // امتیاز ۰ تا ۱۰۰ از ترکیب ۵ عامل:
@@ -46,7 +46,7 @@ export interface FundamentalsSnapshot {
 }
 
 /** قالب‌بندی اعداد بزرگ دلاری برای نمایش فارسی — پیاده‌سازی در lib/fa (بدون وابستگی سرور) */
-export { faBigUsd } from '@/lib/fa'
+export { faBigUsd }
 
 // ─── امتیازدهی هر عامل ───
 

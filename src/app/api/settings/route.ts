@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ensurePragmas } from '@/lib/db'
 import { ensureBooted } from '@/lib/boot'
 import { keyStatus, KEYS } from '@/lib/env'
-import { getMode, getRiskConfig, getBrainWeights, getBotConfig, setSetting, getSetting, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
+import { getMode, getRiskConfig, getBrainWeights, getBotConfig, getFuturesConfig, setSetting, getSetting, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
 import { requireAdmin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -20,11 +20,12 @@ export async function GET() {
   try {
     await ensurePragmas()
     await ensureBooted()
-    const [mode, risk, weights, bot, healRaw, optRaw, verRaw] = await Promise.all([
+    const [mode, risk, weights, bot, futures, healRaw, optRaw, verRaw] = await Promise.all([
       getMode(),
       getRiskConfig(),
       getBrainWeights(),
       getBotConfig(),
+      getFuturesConfig(),
       getSetting('healSnapshot'),
       getSetting('optimizeSnapshot'),
       getSetting('versionInfo'),
@@ -35,6 +36,7 @@ export async function GET() {
       risk,
       weights: FEATURE_KEYS.map((k: FeatureKey) => ({ key: k, weight: weights[k] })),
       bot,
+      futures,
       adminLockEnabled: KEYS.adminToken.length > 0,
       connector: {
         name: 'Toobit',
@@ -62,9 +64,15 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
   await ensurePragmas()
 
-  let body: { botEnabled?: string } = {}
+  let body: {
+    botEnabled?: string
+    futuresLeverageMode?: string
+    futuresMaxLeverage?: number
+    futuresFixedLeverage?: number
+    botExpertGate?: string
+  } = {}
   try {
-    body = (await req.json()) as { botEnabled?: string }
+    body = (await req.json()) as typeof body
   } catch {
     /* empty body → token verification only */
   }
@@ -76,6 +84,30 @@ export async function POST(req: NextRequest) {
       message: body.botEnabled === 'on' ? 'ربات معامله‌گر روشن شد' : 'ربات معامله‌گر خاموش شد',
       botEnabled: body.botEnabled,
     })
+  }
+
+  // ─── فیوچرز: اهرم قابل تنظیم ───
+  const futuresMsg: string[] = []
+  if (body.futuresLeverageMode === 'auto' || body.futuresLeverageMode === 'fixed') {
+    await setSetting('futuresLeverageMode', body.futuresLeverageMode)
+    futuresMsg.push(body.futuresLeverageMode === 'auto' ? 'اهرم خودکار (متناسب با ریسک و بنیاد)' : 'اهرم ثابت')
+  }
+  if (typeof body.futuresMaxLeverage === 'number' && Number.isFinite(body.futuresMaxLeverage)) {
+    const n = Math.min(25, Math.max(1, Math.round(body.futuresMaxLeverage)))
+    await setSetting('futuresMaxLeverage', String(n))
+    futuresMsg.push(`سقف اهرم ×${n}`)
+  }
+  if (typeof body.futuresFixedLeverage === 'number' && Number.isFinite(body.futuresFixedLeverage)) {
+    const n = Math.min(25, Math.max(1, Math.round(body.futuresFixedLeverage)))
+    await setSetting('futuresFixedLeverage', String(n))
+    futuresMsg.push(`اهرم ثابت ×${n}`)
+  }
+  if (body.botExpertGate === 'on' || body.botExpertGate === 'off') {
+    await setSetting('botExpertGate', body.botExpertGate)
+    futuresMsg.push(body.botExpertGate === 'on' ? 'دروازهٔ استادی روشن' : 'دروازهٔ استادی خاموش')
+  }
+  if (futuresMsg.length) {
+    return NextResponse.json({ ok: true, message: `ثبت شد: ${futuresMsg.join(' — ')}` })
   }
 
   return NextResponse.json({ ok: true, message: 'توکن مدیریت تأیید شد' })

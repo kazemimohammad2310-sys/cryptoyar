@@ -1,13 +1,23 @@
 import { db } from '@/lib/db'
-import { getBotConfig, getRiskConfig } from '@/lib/settings'
+import { getBotConfig, getRiskConfig, getFuturesConfig } from '@/lib/settings'
 import { openPosition, closePosition, latestPrice, isCircuitBreakerTripped } from '@/lib/fund'
+import { computeFundamentals, type FundamentalRow } from '@/lib/fundamentals'
+import { STRATEGY_FA } from '@/lib/brain'
 import { faNum } from '@/lib/fa'
 
-// ─── Auto-Trader Bot (paper) ───
+// ─── Auto-Trader Bot (paper) — حالت استادی ───
 // Converts the strongest fresh radar signals into paper positions automatically,
 // with server-side risk caps, per-symbol cooldowns and open-position management
 // (breakeven stop → trailing stop → time-stop for dead trades).
 // Every entry is tagged with BOT_PREFIX so the UI and reports can attribute it.
+//
+// دروازهٔ استادی (پیش از هر ورود، مثل یک تریدر حرفه‌ای تکنیکال + فاندامنتال):
+//   ۱) فاندامنتال ضعیف → ورود ممنوع مگر امتیاز ≥ ۸۵
+//   ۲) اشباع RSI خلاف جهت (جز استراتژی‌های خلاف‌روند) → ممنوع
+//   ۳) نوسان مرده (< ‎۰٫۲۵٪) یا خطرناک (> ۹٪ ATR روزانه) → ممنوع
+//   ۴) فاندینگ ازدحام‌شده خلاف جهت معامله (جز ناهنجاری فاندینگ) → ممنوع
+//   ۵) MTF تایم‌فریم ۴ساعته کاملاً مخالف مومنتوم‌ها → ممنوع
+//   + شمارش همگرایی ۹ فاکتور تکنیکال برای ثبت در دلیل معامله و اهرم متناسب با بنیاد
 
 export const BOT_PREFIX = 'ربات خودکار'
 const SIGNAL_MAX_AGE_H = 8 // never chase signals older than this
@@ -17,6 +27,82 @@ const TRAIL_AT_PCT = 1.6 // start trailing at +1.6%
 const TRAIL_GAP_PCT = 1.2 // trail distance from mark price
 const TIME_STOP_H = 72 // exit dead trades after 72h
 const TIME_STOP_EPS_PCT = 0.5 // ...only if |pnl| is negligible
+
+// دروازهٔ استادی — آستانه‌ها
+const WEAK_FUND_SCORE_OVERRIDE = 85 // بنیاد ضعیف فقط با امتیاز خیلی بالا عبور می‌کند
+const RSI_OVERBOUGHT_LONG_BLOCK = 78
+const RSI_OVERSOLD_SHORT_BLOCK = 22
+const ATR_DEAD_PCT = 0.25
+const ATR_DANGER_PCT = 9
+const FUNDING_CROWDED = 0.0015
+const MTF_HARD_AGAINST = 0.4
+
+const DIRECTIONAL_FEATURES = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf'] as const
+
+type SigFeatures = Partial<Record<(typeof DIRECTIONAL_FEATURES)[number], number>> & {
+  rsiRaw?: number
+  volZ?: number
+  atrPct?: number
+}
+
+function parseFeatures(raw: string): SigFeatures {
+  try {
+    return JSON.parse(raw) as SigFeatures
+  } catch {
+    return {}
+  }
+}
+
+/** چند فاکتور تکنیکال با جهت معامله همسو هستند؟ (۰ تا ۹) */
+function confluenceOf(f: SigFeatures, side: 'long' | 'short'): number {
+  return DIRECTIONAL_FEATURES.reduce((acc, k) => {
+    const v = f[k]
+    if (typeof v !== 'number' || !Number.isFinite(v) || v === 0) return acc
+    return acc + ((side === 'long' && v > 0) || (side === 'short' && v < 0) ? 1 : 0)
+  }, 0)
+}
+
+/** دروازهٔ استادی: null = عبور | رشتهٔ فارسی = دلیل رد */
+function expertGateFailReason(
+  f: SigFeatures,
+  side: 'long' | 'short',
+  strategy: string,
+  absScore: number,
+  fundRow: FundamentalRow | null | undefined,
+): string | null {
+  const contrarian = strategy === 'mean_reversion' || strategy === 'funding_anomaly'
+
+  // ۱) بنیاد ضعیف → فقط با امتیاز استثنایی
+  if (fundRow && fundRow.level === 'weak' && absScore < WEAK_FUND_SCORE_OVERRIDE) {
+    return `بنیاد ضعیف (${fundRow.levelFa})`
+  }
+  // ۲) اشباع RSI خلاف جهت
+  if (!contrarian && f.rsiRaw !== undefined && Number.isFinite(f.rsiRaw)) {
+    if (side === 'long' && f.rsiRaw > RSI_OVERBOUGHT_LONG_BLOCK) return `RSI اشباع خرید (${faNum(f.rsiRaw, 0)})`
+    if (side === 'short' && f.rsiRaw < RSI_OVERSOLD_SHORT_BLOCK) return `RSI اشباع فروش (${faNum(f.rsiRaw, 0)})`
+  }
+  // ۳) نوسان نامناسب
+  if (f.atrPct !== undefined && Number.isFinite(f.atrPct)) {
+    if (f.atrPct < ATR_DEAD_PCT) return 'نوسان مرده (بدون حرکت)'
+    if (f.atrPct > ATR_DANGER_PCT) return 'نوسان خطرناک (ATR خیلی بالا)'
+  }
+  // ۴) فاندینگ ازدحام خلاف جهت معامله
+  if (!contrarian && typeof f.funding === 'number') {
+    const fundingRaw = (f as { fundingRaw?: number }).fundingRaw
+    if (side === 'long' && fundingRaw !== undefined && Number.isFinite(fundingRaw) && fundingRaw > FUNDING_CROWDED) {
+      return 'فاندینگ مثبت سنگین (ازدحام لانگ)'
+    }
+    if (side === 'short' && fundingRaw !== undefined && Number.isFinite(fundingRaw) && fundingRaw < -FUNDING_CROWDED) {
+      return 'فاندینگ منفی سنگین (ازدحام شورت)'
+    }
+  }
+  // ۵) تایم‌فریم ۴ساعته کاملاً مخالف مومنتوم‌ها
+  if (!contrarian && typeof f.mtf === 'number' && Number.isFinite(f.mtf)) {
+    if (side === 'long' && f.mtf < -MTF_HARD_AGAINST) return 'روند ۴ساعته مخالف (MTF)'
+    if (side === 'short' && f.mtf > MTF_HARD_AGAINST) return 'روند ۴ساعته مخالف (MTF)'
+  }
+  return null
+}
 
 function pnlPctOf(side: string, entry: number, price: number): number {
   return side === 'long' ? ((price - entry) / entry) * 100 : ((entry - price) / entry) * 100
@@ -132,8 +218,21 @@ export async function runAutoTrader(): Promise<string> {
     return `سیگنال تازهٔ بالای امتیاز ${faNum(bot.minScore, 0)} نداریم — ${manageFa}`
   }
 
+  // دروازهٔ استادی: نقشهٔ بنیادی نمادها (کش ۱۵ دقیقه‌ای — بدون تماس اضافه)
+  const fut = await getFuturesConfig()
+  let fundMap = new Map<string, FundamentalRow>()
+  if (fut.expertGate === 'on') {
+    try {
+      const snap = await computeFundamentals({ maxAgeMs: 15 * 60_000 })
+      fundMap = new Map(snap.rows.map((r) => [r.symbol, r]))
+    } catch {
+      /* بدون نقشهٔ بنیادی، دروازهٔ فاندامنتال غیرفعال می‌ماند */
+    }
+  }
+
   let opened = 0
   let skipped = 0
+  let gated = 0
   const openedFa: string[] = []
   const skipFa: string[] = []
 
@@ -166,19 +265,31 @@ export async function runAutoTrader(): Promise<string> {
         }
       }
 
+      // ─── دروازهٔ استادی ───
+      const side: 'long' | 'short' = s.side === 'short' ? 'short' : 'long'
+      const absScore = Math.abs(s.score)
+      const fundRow = fundMap.get(s.symbol) ?? null
+      if (fut.expertGate === 'on') {
+        const f = parseFeatures(s.featuresJson)
+        const gateFail = expertGateFailReason(f, side, s.strategy, absScore, fundRow)
+        if (gateFail) {
+          gated++
+          skipFa.push(`${s.symbol}: ${gateFail}`)
+          continue
+        }
+      }
+
+      const confluence = confluenceOf(parseFeatures(s.featuresJson), side)
+      const levelFa = fundRow ? fundRow.levelFa : 'نامشخص'
       const r = await openPosition({
         symbol: s.symbol,
-        side: s.side === 'short' ? 'short' : 'long',
+        side,
         signalId: s.id,
-        reasonFa: `${BOT_PREFIX} — ${s.strategy}`,
-      })
-      // tag the position so reports can attribute it to the bot
-      await db.fundPosition.update({
-        where: { id: r.positionId },
-        data: { reasonFa: { set: `${BOT_PREFIX} — ${s.strategy} — امتیاز ${faNum(Math.round(Math.abs(s.score)), 0)}` } },
+        reasonFa: `${BOT_PREFIX} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، بنیاد ${levelFa}`,
+        fundamentalLevel: fundRow?.level ?? null,
       })
       opened++
-      openedFa.push(`${s.symbol} ${s.side === 'long' ? 'خرید' : 'فروش'}`)
+      openedFa.push(`${s.symbol} ${side === 'long' ? 'خرید' : 'فروش'} ×${faNum(r.leverage, r.leverage % 1 === 0 ? 0 : 1)}`)
     } catch {
       skipped++
     }
@@ -186,6 +297,9 @@ export async function runAutoTrader(): Promise<string> {
 
   const parts = [`ورود: ${faNum(opened, 0)}`]
   if (openedFa.length) parts.push(`(${openedFa.join('، ')})`)
-  parts.push(`ردشده: ${faNum(skipped, 0)} — ${manageFa}`)
-  return parts.join(' ')
+  if (gated > 0) parts.push(`رد استادی: ${faNum(gated, 0)}`)
+  parts.push(`ردشده: ${faNum(skipped, 0)}`)
+  if (skipFa.length) parts.push(`دلایل: ${skipFa.slice(0, 5).join(' · ')}`)
+  parts.push(manageFa)
+  return parts.join(' — ')
 }

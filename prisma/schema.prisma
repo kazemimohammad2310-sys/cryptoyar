@@ -108,6 +108,8 @@ model FundPosition {
   markPrice      Float
   stopLoss       Float
   takeProfit     Float
+  leverage       Float     @default(1) // فیوچرز: اهرم ×۱ تا ×max — ۱ یعنی اسپات
+  marginUsdt     Float     @default(0) // فیوچرز: مارجین درگیر = حجم اسمی / اهرم
   strategy       String    @default("manual")
   reasonFa       String    @default("")
   sourceSignalId Int?

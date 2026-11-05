@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db, ensurePragmas } from '@/lib/db'
 import { ensureBooted } from '@/lib/boot'
-import { computeStats, currentEquity } from '@/lib/fund'
+import { computeStats, currentEquity, liquidationPrice, roeOf } from '@/lib/fund'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +30,10 @@ export async function GET() {
         markPrice: p.markPrice,
         stopLoss: p.stopLoss,
         takeProfit: p.takeProfit,
+        leverage: p.leverage || 1,
+        marginUsdt: p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1),
+        liquidationPrice: liquidationPrice(p),
+        roe: roeOf(p),
         strategy: p.strategy,
         reasonFa: p.reasonFa,
         pnlUsdt: (p.side === 'long' ? p.markPrice - p.entryPrice : p.entryPrice - p.markPrice) * p.qty,
