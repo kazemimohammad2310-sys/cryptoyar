@@ -547,15 +547,20 @@ async function main(): Promise<void> {
 <script>
 (function(){
   var btns=document.querySelectorAll('.tabbtn'),secs=document.querySelectorAll('section[data-tab]');
-  function show(t){
+  var VALID=['dashboard','radar','coins','fund','brain','nightshift','help'];
+  function show(t,skipHash){
     for(var i=0;i<btns.length;i++){btns[i].classList.toggle('on',btns[i].getAttribute('data-go')===t)}
     for(var j=0;j<secs.length;j++){secs[j].hidden=secs[j].getAttribute('data-tab')!==t}
     try{localStorage.setItem('cy_cloud_tab',t)}catch(e){}
+    if(!skipHash){try{history.replaceState(null,'','#'+t)}catch(e){}}
   }
   for(var i=0;i<btns.length;i++){(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-go'))})})(btns[i])}
   var init='dashboard';
-  try{init=localStorage.getItem('cy_cloud_tab')||init}catch(e){}
-  show(init);
+  var h=(location.hash||'').replace('#','');
+  if(VALID.indexOf(h)>=0){init=h}
+  else{try{init=localStorage.getItem('cy_cloud_tab')||init}catch(e){}}
+  show(init,true);
+  window.addEventListener('hashchange',function(){var nh=(location.hash||'').replace('#','');if(VALID.indexOf(nh)>=0)show(nh,true)});
 })();
 </script>
 </body>
