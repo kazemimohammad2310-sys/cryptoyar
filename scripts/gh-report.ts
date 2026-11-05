@@ -4,9 +4,10 @@
 
 import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'fs'
 import { db, ensurePragmas } from '@/lib/db'
-import { getSetting, getBrainWeights, type FeatureKey } from '@/lib/settings'
+import { getSetting, getBrainWeights, getBotConfig, type FeatureKey } from '@/lib/settings'
 import { currentEquity } from '@/lib/fund'
 import { runSelfTest } from '@/lib/brain'
+import { BOT_PREFIX } from '@/lib/autotrader'
 import { faNum, faPct } from '@/lib/fa'
 
 const FA_TIME = new Intl.DateTimeFormat('fa-IR', {
@@ -22,6 +23,7 @@ const JOBS_FA: Record<string, string> = {
   'funding-refresh': 'فاندینگ/OI',
   'radar-scan': 'اسکن رادار',
   'fund-mark': 'ارزش‌گذاری صندوق',
+  'bot-trade': 'ربات معامله‌گر',
   'brain-train': 'آموزش مغز',
   'equity-snapshot': 'نمودار سرمایه',
   health: 'پایش سلامت',
@@ -36,6 +38,7 @@ const JOB_INTERVAL_MS: Record<string, number> = {
   'cmc-refresh': 15 * 60_000,
   'radar-scan': 15 * 60_000,
   'fund-mark': 60_000,
+  'bot-trade': 5 * 60_000,
   'brain-train': 60 * 60_000,
   'equity-snapshot': 60 * 60_000,
   health: 5 * 60_000,
@@ -63,9 +66,10 @@ async function main(): Promise<void> {
   )
   const recentLogs = await db.jobLog.findMany({ orderBy: { startedAt: 'desc' }, take: 12 })
 
-  const [healthRaw, weights, equityNow, equityPoints, positions, closedPositions, signals, coins, candleCount, selfTest, sampleTotal, sampleEvaluated, sampleWins, closedCount] = await Promise.all([
+  const [healthRaw, weights, bot, equityNow, equityPoints, positions, closedPositions, signals, coins, candleCount, selfTest, sampleTotal, sampleEvaluated, sampleWins, closedCount, botOpenCount, botTotalCount, lastBotLog] = await Promise.all([
     getSetting('healthSnapshot'),
     getBrainWeights(),
+    getBotConfig(),
     currentEquity().catch(() => 0),
     db.equityPoint.findMany({ orderBy: { ts: 'desc' }, take: 48 }),
     db.fundPosition.findMany({ where: { status: 'open' } }),
@@ -78,6 +82,9 @@ async function main(): Promise<void> {
     db.brainSample.count({ where: { evaluatedAt: { not: null } } }),
     db.brainSample.count({ where: { outcome: 'win' } }),
     db.fundPosition.count({ where: { status: 'closed' } }),
+    db.fundPosition.count({ where: { status: 'open', reasonFa: { startsWith: BOT_PREFIX } } }),
+    db.fundPosition.count({ where: { reasonFa: { startsWith: BOT_PREFIX } } }),
+    db.jobLog.findFirst({ where: { job: 'bot-trade' }, orderBy: { startedAt: 'desc' } }),
   ])
 
   const health = healthRaw ? (JSON.parse(healthRaw) as Record<string, boolean>) : null
@@ -175,6 +182,20 @@ async function main(): Promise<void> {
       <div class="kpi"><span>دارایی فعلی</span><b>${faNum(equityNow, 2)} USDT</b></div>
       <div class="kpi"><span>سود/زیان باز</span><b class="${unrealized >= 0 ? 'up' : 'down'}">${faNum(unrealized, 2)} USDT</b></div>
       <div class="kpi"><span>معاملات بسته‌شده</span><b>${faNum(closedCount, 0)}</b></div>
+      <div class="kpi"><span>پوزیشن‌های ربات</span><b>${faNum(botOpenCount, 0)} باز / ${faNum(botTotalCount, 0)} کل</b></div>
+    </div>
+    <div class="card">
+      <h2>ربات معامله‌گر</h2>
+      <div class="reason">
+        وضعیت: <b class="${bot.enabled === 'on' ? 'up' : 'down'}">${bot.enabled === 'on' ? 'روشن — خودش از سیگنال‌های قوی معامله می‌کند' : 'خاموش — فقط ثبت دستی'}</b>
+        · حداقل امتیاز ورود: ${faNum(bot.minScore, 0)} · سقف پوزیشن ربات: ${faNum(bot.maxOpen, 0)} · خنک‌شدن پس از ضرر: ${faNum(bot.cooldownHours, 0)} ساعت
+      </div>
+      <div class="reason" style="margin-top:6px">قوانین مدیریت: بعد از سود +۱٪ حد ضرر به سر‌به‌سر می‌رود، بعد از +۱٫۶٪ متحرک می‌شود، و معاملهٔ بی‌تحرک بعد از ۷۲ ساعت بسته می‌شود.</div>
+      <div class="reason" style="margin-top:6px">آخرین فعالیت ربات: ${
+        lastBotLog
+          ? `${lastBotLog.ok ? '<b class="up">موفق</b>' : '<b class="down">خطا</b>'} — ${esc(lastBotLog.detail ?? '')} <span class="sub">(${FA_TIME.format(lastBotLog.startedAt)})</span>`
+          : 'هنوز اجرا نشده — با اولین چرخه فعال می‌شود'
+      }</div>
     </div>
     <div class="card">
       <h2>پوزیشن‌های باز</h2>
@@ -396,6 +417,7 @@ async function main(): Promise<void> {
         positions: positions.map((p) => ({ symbol: p.symbol, side: p.side, pnlPct: p.pnlPct })),
         signals: signals.map((s) => ({ symbol: s.symbol, side: s.side, score: s.score, strategy: s.strategy, status: s.status })),
         brain: { total: sampleTotal, evaluated: sampleEvaluated, wins: sampleWins },
+        bot: { enabled: bot.enabled, minScore: bot.minScore, maxOpen: bot.maxOpen, openPositions: botOpenCount, totalPositions: botTotalCount },
       },
       null,
       2,

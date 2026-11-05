@@ -31,6 +31,11 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   globalMetrics: '',
   signalThreshold: '60',
   watchThreshold: '40',
+  // auto-trader bot (paper)
+  botEnabled: 'on',
+  botMinScore: '65',
+  botMaxOpen: '6',
+  botCooldownHours: '6',
   // bookkeeping
   selftestLastDate: '',
   pruneLastDate: '',
@@ -80,6 +85,25 @@ export async function getBrainWeights(): Promise<Record<FeatureKey, number>> {
   } catch {
     return { ...DEFAULT_WEIGHTS }
   }
+}
+
+export async function getBotConfig() {
+  const [enabled, minScore, maxOpen, cooldownHours] = await Promise.all([
+    getSetting('botEnabled').then((v) => (v === 'off' ? 'off' : 'on')),
+    getSetting('botMinScore').then((v) => {
+      const n = Number(v ?? 65)
+      return Number.isFinite(n) ? Math.min(95, Math.max(40, n)) : 65
+    }),
+    getSetting('botMaxOpen').then((v) => {
+      const n = Number(v ?? 6)
+      return Number.isFinite(n) ? Math.min(20, Math.max(1, Math.round(n))) : 6
+    }),
+    getSetting('botCooldownHours').then((v) => {
+      const n = Number(v ?? 6)
+      return Number.isFinite(n) ? Math.min(72, Math.max(0, n)) : 6
+    }),
+  ])
+  return { enabled, minScore, maxOpen, cooldownHours } as const
 }
 
 export async function getRiskConfig() {

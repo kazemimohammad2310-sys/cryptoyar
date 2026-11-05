@@ -117,6 +117,7 @@ export interface SettingsResp {
   keys: { cmc: boolean; toobitKey: boolean; toobitSecret: boolean; adminToken: boolean }
   risk: { equity: number; maxPositions: number; riskPerTradePct: number; maxPositionPct: number; dailyDrawdownHaltPct: number }
   weights: { key: string; weight: number }[]
+  bot: { enabled: 'on' | 'off'; minScore: number; maxOpen: number; cooldownHours: number }
   adminLockEnabled: boolean
   connector: { name: string; phase: number; note: string }
 }

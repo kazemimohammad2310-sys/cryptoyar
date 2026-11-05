@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { KeyRound, Lock, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Bot, KeyRound, Lock, RefreshCw, ShieldCheck } from 'lucide-react'
 import { getAdminToken, postJson, setAdminToken, usePolling } from '@/components/cryptoyar/usePolling'
 import { ErrorNote, FEATURE_FA, SectionTitle, SkeletonBlock } from '@/components/cryptoyar/kit'
 import { faNum } from '@/lib/fa'
@@ -13,6 +13,8 @@ export function SettingsTab() {
   const [tokenState, setTokenState] = useState<'idle' | 'checking' | 'ok' | 'bad'>('idle')
   const [tokenMsg, setTokenMsg] = useState('')
   const [loadedFromStorage, setLoadedFromStorage] = useState(false)
+  const [botToggling, setBotToggling] = useState(false)
+  const [botMsg, setBotMsg] = useState('')
 
   // read the saved token only after mount (hydration-safe)
   useEffect(() => {
@@ -42,6 +44,20 @@ export function SettingsTab() {
     }
   }
 
+  async function toggleBot(next: 'on' | 'off'): Promise<void> {
+    setBotToggling(true)
+    setBotMsg('')
+    try {
+      const r = await postJson<{ ok: boolean; message?: string }>('/api/settings', { botEnabled: next })
+      setBotMsg(r.message ?? (next === 'on' ? 'ربات روشن شد' : 'ربات خاموش شد'))
+      settings.refresh()
+    } catch (e) {
+      setBotMsg(e instanceof Error ? e.message : 'خطا در تغییر وضعیت ربات')
+    } finally {
+      setBotToggling(false)
+    }
+  }
+
   const d = settings.data
 
   return (
@@ -65,6 +81,49 @@ export function SettingsTab() {
             <p className="text-xs text-muted-foreground">
               معاملات واقعی فقط در فاز ۲ و با تأیید صریح شما باز می‌شود؛ تا آن زمان صندوق فقط با سرمایهٔ مجازی
               می‌چرخد.
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      {/* auto-trader bot */}
+      <section>
+        <SectionTitle icon={<Bot className="h-4 w-4" />}>ربات معامله‌گر خودکار (شبیه‌سازی)</SectionTitle>
+        {settings.loading ? (
+          <SkeletonBlock className="h-20" />
+        ) : d ? (
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold">
+                  وضعیت ربات:{" "}
+                  {d.bot.enabled === 'on' ? (
+                    <span className="cy-up">روشن — خودش معامله می‌کند</span>
+                  ) : (
+                    <span className="cy-down">خاموش — فقط ثبت دستی</span>
+                  )}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  قوانین ربات: ورود فقط از سیگنال‌های تازه با امتیاز ≥ {faNum(d.bot.minScore, 0)} · حداکثر{" "}
+                  {faNum(d.bot.maxOpen, 0)} پوزیشن ربات · خنک‌شدن {faNum(d.bot.cooldownHours, 0)} ساعته پس از ضرر هر
+                  نماد · بعد از سود +۱٪ حد ضرر به سر‌به‌سر و بعد +۱٫۶٪ متحرک می‌شود · معاملهٔ بی‌تحرک بعد از ۷۲ ساعت
+                  بسته می‌شود.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void toggleBot(d.bot.enabled === 'on' ? 'off' : 'on')}
+                disabled={botToggling}
+                className={`rounded-lg px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50 ${
+                  d.bot.enabled === 'on' ? 'bg-[color:var(--cy-down)]' : 'bg-[color:var(--cy-up)]'
+                }`}
+              >
+                {botToggling ? 'در حال انجام…' : d.bot.enabled === 'on' ? 'خاموش کردن ربات' : 'روشن کردن ربات'}
+              </button>
+            </div>
+            {botMsg ? <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs">{botMsg}</p> : null}
+            <p className="text-[11px] text-muted-foreground">
+              تغییر وضعیت ربات به توکن مدیریت نیاز دارد — اول توکن را در بخش پایین ذخیره کنید.
             </p>
           </div>
         ) : null}

@@ -13,6 +13,7 @@ const ORDER = [
   'funding-refresh',
   'radar-scan',
   'fund-mark',
+  'bot-trade',
   'equity-snapshot',
   'brain-train',
   'health',

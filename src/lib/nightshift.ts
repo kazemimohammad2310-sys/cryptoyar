@@ -8,6 +8,7 @@ import { getFearGreed } from '@/lib/fetchers/feargreed'
 import { scanRadar, persistRadarResult } from '@/lib/radar'
 import { evaluateDueSamples, trainBrain, runSelfTest } from '@/lib/brain'
 import { markToMarket, snapshotEquity, currentEquity } from '@/lib/fund'
+import { runAutoTrader } from '@/lib/autotrader'
 import { sourceHealth } from '@/lib/rateLimit'
 import { faNum } from '@/lib/fa'
 
@@ -265,6 +266,10 @@ async function jobDataPrune(): Promise<string> {
   return `پاک‌سازی: کندل ۱۵m=${c15.count}، ۱h=${c1h.count}، تیکر=${tick.count}، فاندینگ=${fund.count}، لاگ=${log.count}`
 }
 
+async function jobBotTrade(): Promise<string> {
+  return runAutoTrader()
+}
+
 async function jobHealth(): Promise<string> {
   const h = sourceHealth()
   await setSetting(
@@ -312,6 +317,7 @@ export function jobDefs(): JobDef[] {
     { name: 'cmc-refresh', fa: 'رتبه‌بندی بازار', intervalMs: 15 * 60_000, run: jobCmcRefresh },
     { name: 'radar-scan', fa: 'اسکن رادار', intervalMs: 15 * 60_000, run: jobRadarScan },
     { name: 'fund-mark', fa: 'ارزش‌گذاری صندوق', intervalMs: 60_000, run: jobFundMark },
+    { name: 'bot-trade', fa: 'ربات معامله‌گر', intervalMs: 5 * 60_000, run: jobBotTrade },
     { name: 'brain-train', fa: 'آموزش مغز', intervalMs: 60 * 60_000, run: jobBrainTrain },
     { name: 'equity-snapshot', fa: 'نمودار سرمایه', intervalMs: 60 * 60_000, run: jobEquitySnapshot },
     { name: 'health', fa: 'پایش سلامت', intervalMs: 5 * 60_000, run: jobHealth },
@@ -363,7 +369,7 @@ export async function bootNightshift(): Promise<void> {
     if (typeof t.unref === 'function') t.unref()
     s.timers.push(t)
   }
-  console.log('[CryptoYar] شیفت‌شب فعال شد — ۱۱ وظیفه زمان‌بندی شد')
+  console.log('[CryptoYar] شیفت‌شب فعال شد — ۱۲ وظیفه زمان‌بندی شد')
 }
 
 export function isBootstrapped(): boolean {
