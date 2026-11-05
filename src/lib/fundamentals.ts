@@ -45,14 +45,8 @@ export interface FundamentalsSnapshot {
   global: { totalMarketCap: number; totalVolume24h: number; btcDominance: number } | null
 }
 
-/** قالب‌بندی اعداد بزرگ دلاری برای نمایش فارسی */
-export function faBigUsd(n: number | null | undefined): string {
-  if (n === null || n === undefined || !Number.isFinite(n) || n <= 0) return '—'
-  if (n >= 1e12) return `${faNum(n / 1e12, 2)} هزار میلیارد دلار`
-  if (n >= 1e9) return `${faNum(n / 1e9, 2)} میلیارد دلار`
-  if (n >= 1e6) return `${faNum(n / 1e6, 1)} میلیون دلار`
-  return `${faNum(n, 0)} دلار`
-}
+/** قالب‌بندی اعداد بزرگ دلاری برای نمایش فارسی — پیاده‌سازی در lib/fa (بدون وابستگی سرور) */
+export { faBigUsd } from '@/lib/fa'
 
 // ─── امتیازدهی هر عامل ───
 

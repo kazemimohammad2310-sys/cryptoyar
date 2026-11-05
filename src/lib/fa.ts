@@ -16,6 +16,15 @@ export function faPrice(n: number | null | undefined): string {
   return numFmt({ maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(n)
 }
 
+/** قالب‌بندی اعداد بزرگ دلاری برای نمایش فارسی (هزار میلیارد/میلیارد/میلیون) */
+export function faBigUsd(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n) || n <= 0) return '—'
+  if (n >= 1e12) return `${faNum(n / 1e12, 2)} هزار میلیارد دلار`
+  if (n >= 1e9) return `${faNum(n / 1e9, 2)} میلیارد دلار`
+  if (n >= 1e6) return `${faNum(n / 1e6, 1)} میلیون دلار`
+  return `${faNum(n, 0)} دلار`
+}
+
 export function faUsd(n: number | null | undefined, digits = 2): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—'
   return `${faNum(n, digits)} دلار`

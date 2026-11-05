@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Activity, Brain, MoonStar, Radar, Settings as SettingsIcon, Wallet } from 'lucide-react'
+import { Activity, Brain, Coins, MoonStar, Radar, Settings as SettingsIcon, Wallet } from 'lucide-react'
 import { usePolling } from '@/components/cryptoyar/usePolling'
 import { StatusDot } from '@/components/cryptoyar/kit'
 import { DashboardTab } from '@/components/cryptoyar/tabs/DashboardTab'
 import { RadarTab } from '@/components/cryptoyar/tabs/RadarTab'
+import { CoinsTab } from '@/components/cryptoyar/tabs/CoinsTab'
 import { FundTab } from '@/components/cryptoyar/tabs/FundTab'
 import { BrainTab } from '@/components/cryptoyar/tabs/BrainTab'
 import { NightshiftTab } from '@/components/cryptoyar/tabs/NightshiftTab'
@@ -19,6 +20,7 @@ import { SettingsTab } from '@/components/cryptoyar/tabs/SettingsTab'
 const TABS = [
   { key: 'dashboard', fa: 'داشبورد', icon: Activity },
   { key: 'radar', fa: 'رادار فرصت‌ها', icon: Radar },
+  { key: 'coins', fa: 'ارزها', icon: Coins },
   { key: 'fund', fa: 'صندوق شبیه‌ساز', icon: Wallet },
   { key: 'brain', fa: 'مغز یادگیرنده', icon: Brain },
   { key: 'nightshift', fa: 'شیفت‌شب', icon: MoonStar },
@@ -99,6 +101,9 @@ export function CryptoyarApp() {
         </div>
         <div role="tabpanel" id="panel-radar" aria-labelledby="tab-radar" hidden={tab !== 'radar'}>
           {tab === 'radar' ? <RadarTab /> : null}
+        </div>
+        <div role="tabpanel" id="panel-coins" aria-labelledby="tab-coins" hidden={tab !== 'coins'}>
+          {tab === 'coins' ? <CoinsTab /> : null}
         </div>
         <div role="tabpanel" id="panel-fund" aria-labelledby="tab-fund" hidden={tab !== 'fund'}>
           {tab === 'fund' ? <FundTab /> : null}
