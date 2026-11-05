@@ -2,8 +2,8 @@ import { db } from '@/lib/db'
 
 // ─── Typed settings store (Setting table) with defaults from §3 ───
 
-export type FeatureKey = 'rsi' | 'trend' | 'macd' | 'volume' | 'funding' | 'oi' | 'stretch' | 'btc'
-export const FEATURE_KEYS: FeatureKey[] = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc']
+export type FeatureKey = 'rsi' | 'trend' | 'macd' | 'volume' | 'funding' | 'oi' | 'stretch' | 'btc' | 'mtf'
+export const FEATURE_KEYS: FeatureKey[] = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf']
 
 export const DEFAULT_WEIGHTS: Record<FeatureKey, number> = {
   rsi: 20,
@@ -14,6 +14,7 @@ export const DEFAULT_WEIGHTS: Record<FeatureKey, number> = {
   oi: 6,
   stretch: 8,
   btc: 12,
+  mtf: 14, // Brain v2: 4h multi-timeframe trend confirmation
 }
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
@@ -41,6 +42,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   pruneLastDate: '',
   cmcCallsToday: '0',
   cmcCallsDay: '',
+  // Brain v2: per-strategy trust multipliers + historical backfill gates
+  strategyTrust: '{}',
+  brainBackfillDone: '',
+  backfillLastDate: '',
 }
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -84,6 +89,22 @@ export async function getBrainWeights(): Promise<Record<FeatureKey, number>> {
     return out
   } catch {
     return { ...DEFAULT_WEIGHTS }
+  }
+}
+
+/** Brain v2: per-strategy trust multipliers (1 = neutral). Missing/invalid strategy → 1. */
+export async function getStrategyTrust(): Promise<Record<string, number>> {
+  const raw = await getSetting('strategyTrust')
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as Record<string, number>
+    const out: Record<string, number> = {}
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0.5 && v < 2) out[k] = v
+    }
+    return out
+  } catch {
+    return {}
   }
 }
 

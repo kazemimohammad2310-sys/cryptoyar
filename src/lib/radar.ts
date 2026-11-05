@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { getSetting, getBrainWeights } from '@/lib/settings'
+import { getSetting, getBrainWeights, getStrategyTrust } from '@/lib/settings'
 import { assertUniverse } from '@/lib/universe'
 import { loadCandles, type Interval } from '@/lib/candles'
 import { getFundingRate, getOpenInterest, type CandleRow } from '@/lib/fetchers/binance'
@@ -77,9 +77,12 @@ function atrStop(entry: number, atrPct: number, side: 'long' | 'short'): { stop:
   if (side === 'long') return { stop: entry - dist, target: entry + dist * 1.5 }
   return { stop: entry + dist, target: entry - dist * 1.5 }
 }
+export { atrStop }
 
 // strategy conditions on 1h candles (§5 Phase-1 strategies)
-function checkMomentumBreakout(c: CandleRow[]): 'long' | null {
+// (exported for the brain's historical backfill — backfill.ts replays these
+// exact checks on stored candles to warm-start the learning loop)
+export function checkMomentumBreakout(c: CandleRow[]): 'long' | null {
   if (c.length < 170) return null
   const prev = c.slice(-169, -1)
   const high7d = Math.max(...prev.map((x) => x.high))
@@ -88,7 +91,7 @@ function checkMomentumBreakout(c: CandleRow[]): 'long' | null {
   return last.close > high7d * 0.99 && volZ > 1.5 ? 'long' : null
 }
 
-function checkMeanReversion(c: CandleRow[]): 'long' | 'short' | null {
+export function checkMeanReversion(c: CandleRow[]): 'long' | 'short' | null {
   if (c.length < 40) return null
   const closes = c.map((x) => x.close)
   const last = c[c.length - 1]
@@ -102,7 +105,7 @@ function checkMeanReversion(c: CandleRow[]): 'long' | 'short' | null {
   return null
 }
 
-function checkTrendFollowing(c: CandleRow[]): 'long' | 'short' | null {
+export function checkTrendFollowing(c: CandleRow[]): 'long' | 'short' | null {
   if (c.length < 60) return null
   const closes = c.map((x) => x.close)
   const k = 2 / 21
@@ -126,7 +129,7 @@ function checkTrendFollowing(c: CandleRow[]): 'long' | 'short' | null {
   return null
 }
 
-function checkFundingAnomaly(funding: number | null): 'long' | 'short' | null {
+export function checkFundingAnomaly(funding: number | null): 'long' | 'short' | null {
   if (funding === null) return null
   if (funding > 0.001) return 'short' // crowd too long → fade
   if (funding < -0.001) return 'long' // crowd too short → fade
@@ -163,6 +166,8 @@ function rsiCache(closes: number[]): { rsiOf: number } {
 export async function scanRadar(): Promise<RadarResult> {
   const symbols = await assertUniverse()
   const weights = await getBrainWeights()
+  // Brain v2: per-strategy trust multipliers (learned from real outcomes)
+  const trust = await getStrategyTrust()
   const signals: RadarCandidate[] = []
   const watch: RadarCandidate[] = []
   const errors: { symbol: string; error: string }[] = []
@@ -215,12 +220,14 @@ export async function scanRadar(): Promise<RadarResult> {
           if (cand.side === 'long' && score < 0) continue
           if (cand.side === 'short' && score > 0) continue
         }
+        // Brain v2: calibrated score = raw score × strategy trust
+        const calibrated = score * (trust[cand.strategy] ?? 1)
         const { stop, target } = atrStop(entry, features.atrPct, cand.side)
-        const reasonFa = strategyReasonFa(cand.strategy, cand.side, features, score, contributions)
+        const reasonFa = strategyReasonFa(cand.strategy, cand.side, features, calibrated, contributions)
         const card: RadarCandidate = {
           symbol,
           side: cand.side,
-          score,
+          score: calibrated,
           strategy: cand.strategy,
           entry,
           stop,
@@ -229,8 +236,8 @@ export async function scanRadar(): Promise<RadarResult> {
           reasonFa,
           contributions,
         }
-        if (Math.abs(score) >= SCORE_THRESHOLD) signals.push(card)
-        else if (Math.abs(score) >= WATCH_THRESHOLD) watch.push(card)
+        if (Math.abs(calibrated) >= SCORE_THRESHOLD) signals.push(card)
+        else if (Math.abs(calibrated) >= WATCH_THRESHOLD) watch.push(card)
       }
     } catch (e) {
       errors.push({ symbol, error: e instanceof Error ? e.message : String(e) })
@@ -273,6 +280,7 @@ export async function persistRadarResult(result: RadarResult): Promise<number> {
             oi: s.features.oi,
             stretch: s.features.stretch,
             btc: s.features.btc,
+            mtf: s.features.mtf,
             rsiRaw: s.features.rsiRaw,
             volZ: s.features.volZ,
             atrPct: s.features.atrPct,

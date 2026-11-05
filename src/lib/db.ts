@@ -20,10 +20,10 @@ export function ensurePragmas(): Promise<void> {
   if (!globalForPrisma.__cryptoyar_pragmas) {
     globalForPrisma.__cryptoyar_pragmas = (async () => {
       try {
-        // journal_mode returns a result row → must use queryRaw, not executeRaw
+        // all three PRAGMAs return a result row → must use queryRaw, not executeRaw
         await db.$queryRawUnsafe('PRAGMA journal_mode=WAL;')
-        await db.$executeRawUnsafe('PRAGMA busy_timeout=5000;')
-        await db.$executeRawUnsafe('PRAGMA synchronous=NORMAL;')
+        await db.$queryRawUnsafe('PRAGMA busy_timeout=5000;')
+        await db.$queryRawUnsafe('PRAGMA synchronous=NORMAL;')
       } catch {
         /* degrade — never block boot on pragma failure */
       }

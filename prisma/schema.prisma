@@ -76,6 +76,7 @@ model BrainSample {
   ftPnlPct     Float? // pnl if SL/TP touched first
   createdAt    DateTime  @default(now())
   evaluatedAt  DateTime?
+  source       String    @default("radar") // radar = live signal | backfill = historical replay
 
   @@index([symbol, createdAt])
   @@index([evaluatedAt])

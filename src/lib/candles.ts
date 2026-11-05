@@ -26,6 +26,20 @@ export async function loadCandles(symbol: string, interval: Interval, limit = 30
   return rowsToCandleRows(rows.reverse())
 }
 
+/** Load candles in an explicit time range (ascending) — used by the brain backfill. */
+export async function loadCandlesRange(
+  symbol: string,
+  interval: Interval,
+  fromTs: number,
+  toTs: number,
+): Promise<CandleRow[]> {
+  const rows = await db.candle.findMany({
+    where: { symbol, interval, ts: { gte: new Date(fromTs), lte: new Date(toTs) } },
+    orderBy: { ts: 'asc' },
+  })
+  return rowsToCandleRows(rows)
+}
+
 export async function upsertCandles(symbol: string, interval: Interval, rows: CandleRow[]): Promise<number> {
   if (!rows.length) return 0
   // NOTE: Prisma 6 stores SQLite DateTime as INTEGER epoch-ms — raw inserts must match.

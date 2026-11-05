@@ -6,7 +6,7 @@ import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'fs'
 import { db, ensurePragmas } from '@/lib/db'
 import { getSetting, getBrainWeights, getBotConfig, type FeatureKey } from '@/lib/settings'
 import { currentEquity } from '@/lib/fund'
-import { runSelfTest } from '@/lib/brain'
+import { runSelfTest, STRATEGY_FA as STRATEGY_FA_LOCAL } from '@/lib/brain'
 import { BOT_PREFIX } from '@/lib/autotrader'
 import { faNum, faPct } from '@/lib/fa'
 
@@ -93,14 +93,16 @@ async function main(): Promise<void> {
     db.jobLog.findFirst({ where: { job: 'bot-trade' }, orderBy: { startedAt: 'desc' } }),
   ])
 
-  const [healRaw, optRaw, verRaw] = await Promise.all([
+  const [healRaw, optRaw, verRaw, trustRaw] = await Promise.all([
     getSetting('healSnapshot'),
     getSetting('optimizeSnapshot'),
     getSetting('versionInfo'),
+    getSetting('strategyTrust'),
   ])
   const healSnap = healRaw ? (JSON.parse(healRaw) as { totalHeals?: number; recentActions?: string[]; sickNow?: string[] }) : null
   const optSnap = optRaw ? (JSON.parse(optRaw) as { sizeMB?: number | null; riskBefore?: number; riskAfter?: number; samples?: number; winRate?: number; action?: string }) : null
   const verSnap = verRaw ? (JSON.parse(verRaw) as { sha?: string; subject?: string; updatedCount?: number; syncCount?: number }) : null
+  const strategyTrust = trustRaw ? (JSON.parse(trustRaw) as Record<string, number>) : {}
 
   const health = healthRaw ? (JSON.parse(healthRaw) as Record<string, boolean>) : null
   const equityAsc = equityPoints.slice().reverse()
@@ -283,7 +285,7 @@ async function main(): Promise<void> {
       </div>
     </div>
     <div class="card">
-      <h2>وزن‌های فعلی (باندیت)</h2>
+      <h2>وزن‌های فعلی (باندیت نسخه ۲)</h2>
       ${Object.entries(weights as Record<FeatureKey, number>)
         .map(
           ([k, v]) => `<div style="display:flex;align-items:center;gap:8px;margin:6px 0">
@@ -293,6 +295,22 @@ async function main(): Promise<void> {
       </div>`,
         )
         .join('')}
+    </div>
+    <div class="card">
+      <h2>اعتماد به استراتژی‌ها (یادگرفته‌شده از نتایج واقعی)</h2>
+      ${
+        Object.keys(strategyTrust).length
+          ? `<div class="reason">ضریب بالای ۱ = استراتژی پربازده‌تر (امتیازش تقویت می‌شود)، زیر ۱ = ضعیف‌تر (سخت‌گیرانه‌تر می‌شود).</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+        ${Object.entries(strategyTrust)
+          .map(
+            ([k, v]) =>
+              `<span style="padding:4px 10px;border-radius:12px;font-size:11px;background:${v >= 1 ? 'rgba(14,203,129,.12);color:#0ecb81' : 'rgba(246,70,93,.12);color:#f6465d'}">${esc(STRATEGY_FA_LOCAL[k] ?? k)} ×${faNum(v, 2)}</span>`,
+          )
+          .join('')}
+      </div>`
+          : '<div class="reason">هنوز نمونهٔ کافی برای سنجش اعتماد هر استراتژی جمع نشده — به‌مرور از نتایج واقعی یاد گرفته می‌شود.</div>'
+      }
     </div>`
 
   const tabNightshift = `

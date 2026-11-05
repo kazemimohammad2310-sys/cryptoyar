@@ -4,10 +4,13 @@ import { rsi, macd, emaSeries, atr, volumeZ, slopePct, lastClose } from '@/lib/i
 import { loadCandles, type Interval } from '@/lib/candles'
 import type { CandleRow } from '@/lib/fetchers/binance'
 
-// ─── Brain v1: explainable scoring engine + online learning loop (§4) ───
-// Corrections applied: (a) samples are evaluated with FIRST-TOUCH SL/TP logic
-// (matching real fund behaviour), (b) weights adjust only after ≥50 evaluated
-// samples (cold-start guard against noise-fitting).
+// ─── Brain v2: explainable scoring engine + online learning loop (§4) ───
+// v2 upgrades: (a) new multi-timeframe 4h trend feature (mtf), (b) EARLY
+// sample finalization the moment SL/TP is first touched (matches real fund
+// exits — learning latency drops from 24-72h to minutes-hours), (c) smarter
+// bandit training: time-decayed, PnL-magnitude-weighted, Laplace-smoothed
+// votes with adaptive step sizes, (d) per-strategy trust multipliers learned
+// from real outcomes, (e) historical backfill warm-start (see backfill.ts).
 
 export const MIN_SAMPLES_FOR_TRAINING = 50
 export const SCORE_THRESHOLD = 60
@@ -22,6 +25,7 @@ export interface FeatureVector {
   oi: number // in [-1,1] (0 = unavailable)
   stretch: number // in [-1,1] overbought/oversold stretch penalty
   btc: number // in [-1,1] market beta
+  mtf: number // in [-1,1] 4h multi-timeframe trend confirmation (Brain v2)
   // raw values for display
   rsiRaw: number
   atrPct: number
@@ -92,6 +96,32 @@ export function computeFeatures(input: FeatureInput): FeatureVector | null {
   // Scale 2.5% → tanh(1) ≈ 0.76: a typical BTC day maps to a strong-but-not-binary beta.
   const fBtc = tanh(input.btcRet24h / 2.5)
 
+  // Brain v2: multi-timeframe confirmation — resample 1h closes into 4h buckets
+  // (close of the last hourly bar in each 4h bucket) and measure the higher
+  // timeframe trend. Needs ≥30 4h bars (≈5 days) to be meaningful.
+  let fMtf = 0
+  if (c.length >= 120) {
+    const BUCKET = 4 * 3600_000
+    const closes4: number[] = []
+    let curBucket = Math.floor(c[0].ts / BUCKET)
+    for (let i = 1; i < c.length; i++) {
+      const b = Math.floor(c[i].ts / BUCKET)
+      if (b !== curBucket) {
+        closes4.push(c[i - 1].close) // last bar of the previous 4h bucket
+        curBucket = b
+      }
+    }
+    closes4.push(c[c.length - 1].close) // current (incomplete) bucket
+    if (closes4.length >= 30) {
+      const e20r = emaSeries(closes4, 20)
+      const e50r = emaSeries(closes4, 50)
+      const e20 = e20r[e20r.length - 1]
+      const e50 = e50r[e50r.length - 1]
+      const slope4 = slopePct(e20r, 3)
+      fMtf = tanh(((e20 - e50) / e50) * 90 + (Number.isFinite(slope4) ? slope4 * 10 : 0))
+    }
+  }
+
   return {
     rsi: fRsi,
     trend: fTrend,
@@ -101,6 +131,7 @@ export function computeFeatures(input: FeatureInput): FeatureVector | null {
     oi: fOi,
     stretch: fStretch,
     btc: fBtc,
+    mtf: fMtf,
     rsiRaw,
     atrPct,
     volZ: vZ,
@@ -123,6 +154,7 @@ const FEATURE_FA: Record<FeatureKey, string> = {
   oi: 'قراردادهای باز',
   stretch: 'اشباع',
   btc: 'بیت‌کوین',
+  mtf: 'روند ۴ساعته',
 }
 
 export function scoreFeatures(f: FeatureVector, weights: Record<FeatureKey, number>): ScoreResult {
@@ -135,6 +167,7 @@ export function scoreFeatures(f: FeatureVector, weights: Record<FeatureKey, numb
     oi: f.oi,
     stretch: f.stretch,
     btc: f.btc,
+    mtf: f.mtf,
   }
   let num = 0
   let den = 0
@@ -186,6 +219,7 @@ export function buildReasonBodyFa(f: FeatureVector, top: ScoreResult['contributi
     else if (c.key === 'macd') parts.push(`MACD ${f.macd > 0 ? 'مثبت' : 'منفی'}`)
     else if (c.key === 'oi' && f.oiChangePct !== null) parts.push(`قراردادهای باز ${faNum(f.oiChangePct, 1)}٪ ${f.oiChangePct > 0 ? 'رشد' : 'افت'}`)
     else if (c.key === 'btc') parts.push(`بازگشت ۲۴س بیت‌کوین ${faNum(f.btcRet24h, 1)}٪`)
+    else if (c.key === 'mtf') parts.push(`روند ۴ساعته ${f.mtf > 0 ? 'صعودی' : 'نزولی'}`)
     else if (c.key === 'stretch') parts.push(f.stretch < 0 ? 'اشباع خرید' : 'اشباع فروش')
   }
   return parts.length ? parts.join('، ') : 'سیگنال ترکیبی از میانگین ویژگی‌ها'
@@ -225,6 +259,7 @@ export async function recordSamples(params: {
       oi: params.features.oi,
       stretch: params.features.stretch,
       btc: params.features.btc,
+      mtf: params.features.mtf,
     }),
     predicted: params.side === 'long' ? 'up' : 'down',
   }
@@ -238,7 +273,39 @@ export interface SampleEvalResult {
   timeouts: number
 }
 
-/** Evaluate due samples with first-touch SL/TP (uses 15m candles) + raw move. */
+/** First-touch SL/TP scan over a candle path (conservative: SL wins ties). */
+export function firstTouchScan(
+  side: string,
+  entry: number,
+  sl: number | null,
+  tp: number | null,
+  path: CandleRow[],
+): { ft: 'tp' | 'sl' | 'timeout'; ftPnl: number | null } {
+  if (sl !== null && tp !== null) {
+    for (const bar of path) {
+      if (side === 'long') {
+        if (bar.low <= sl) return { ft: 'sl', ftPnl: ((sl - entry) / entry) * 100 }
+        if (bar.high >= tp) return { ft: 'tp', ftPnl: ((tp - entry) / entry) * 100 }
+      } else {
+        if (bar.high >= sl) return { ft: 'sl', ftPnl: ((entry - sl) / entry) * 100 }
+        if (bar.low <= tp) return { ft: 'tp', ftPnl: ((entry - tp) / entry) * 100 }
+      }
+    }
+  }
+  return { ft: 'timeout', ftPnl: null }
+}
+
+export const outcomeOf = (pnl: number): 'win' | 'loss' | 'flat' => (pnl > 0.15 ? 'win' : pnl < -0.15 ? 'loss' : 'flat')
+
+/**
+ * Evaluate due samples (Brain v2):
+ *  - horizon reached → final evaluation with first-touch SL/TP on the horizon window;
+ *  - horizon NOT reached but SL/TP already touched → EARLY finalization (the
+ *    trade is over at first touch, exactly like the real fund — this is what
+ *    makes the learning loop fast);
+ *  - symbols whose oldest pending sample is younger than one 15m bar are
+ *    skipped entirely (no observable candle yet → no wasted candle loads).
+ */
 export async function evaluateDueSamples(now = Date.now()): Promise<SampleEvalResult> {
   const due = await db.brainSample.findMany({
     where: { evaluatedAt: null, createdAt: { lt: new Date(now) } },
@@ -257,135 +324,151 @@ export async function evaluateDueSamples(now = Date.now()): Promise<SampleEvalRe
   }
 
   for (const [symbol, samples] of bySymbol) {
+    const oldest = Math.min(...samples.map((s) => s.createdAt.getTime()))
+    if (now - oldest < 15 * 60_000) continue // no closed 15m bar since creation
     const candles = await loadCandles(symbol, '15m', 700) // ~7 days
     if (candles.length < 2) continue
     for (const s of samples) {
-      const dueTs = s.createdAt.getTime() + s.horizonHours * 3600_000
-      if (dueTs > now) continue
-      const path = candles.filter((c) => c.ts > s.createdAt.getTime() && c.ts <= dueTs)
-      if (!path.length) continue
+      const createdTs = s.createdAt.getTime()
+      const dueTs = createdTs + s.horizonHours * 3600_000
+      const pathAll = candles.filter((c) => c.ts > createdTs) // up to NOW
+      if (!pathAll.length) continue
 
+      const sideLong = s.side === 'long'
       const entry = s.entryPrice
-      const sl = s.stopLoss
-      const tp = s.takeProfit
-      const endPrice = path[path.length - 1].close
-      const rawPnl = ((s.side === 'long' ? endPrice - entry : entry - endPrice) / entry) * 100
-      const outcome = rawPnl > 0.15 ? 'win' : rawPnl < -0.15 ? 'loss' : 'flat'
 
-      // first-touch SL/TP (correction #3) — only when levels exist
-      let ft: 'tp' | 'sl' | 'timeout' = 'timeout'
-      let ftPnl: number | null = null
-      if (sl !== null && tp !== null) {
-        for (const bar of path) {
-          if (s.side === 'long') {
-            const hitSl = bar.low <= sl
-            const hitTp = bar.high >= tp
-            if (hitSl && hitTp) {
-              ft = 'sl' // conservative: assume stop first when both in one bar
-              ftPnl = ((sl - entry) / entry) * 100
-              break
-            }
-            if (hitSl) {
-              ft = 'sl'
-              ftPnl = ((sl - entry) / entry) * 100
-              break
-            }
-            if (hitTp) {
-              ft = 'tp'
-              ftPnl = ((tp - entry) / entry) * 100
-              break
-            }
-          } else {
-            const hitSl = bar.high >= sl
-            const hitTp = bar.low <= tp
-            if (hitSl && hitTp) {
-              ft = 'sl'
-              ftPnl = ((entry - sl) / entry) * 100
-              break
-            }
-            if (hitSl) {
-              ft = 'sl'
-              ftPnl = ((entry - sl) / entry) * 100
-              break
-            }
-            if (hitTp) {
-              ft = 'tp'
-              ftPnl = ((entry - tp) / entry) * 100
-              break
-            }
-          }
+      if (dueTs <= now) {
+        // final evaluation on the horizon window
+        const path = pathAll.filter((c) => c.ts <= dueTs)
+        if (!path.length) continue
+        const endPrice = path[path.length - 1].close
+        const rawPnl = ((sideLong ? endPrice - entry : entry - endPrice) / entry) * 100
+        const { ft, ftPnl } = firstTouchScan(s.side, entry, s.stopLoss, s.takeProfit, path)
+        await db.brainSample.update({
+          where: { id: s.id },
+          data: { outcome: outcomeOf(rawPnl), pnlPct: rawPnl, ftOutcome: ft, ftPnlPct: ftPnl, evaluatedAt: new Date() },
+        })
+        evaluated++
+        if (ft === 'tp') tpHits++
+        else if (ft === 'sl') slHits++
+        else timeouts++
+      } else if (s.stopLoss !== null && s.takeProfit !== null) {
+        // early finalization: first touch already happened → sample is done
+        const { ft, ftPnl } = firstTouchScan(s.side, entry, s.stopLoss, s.takeProfit, pathAll)
+        if (ft !== 'timeout' && ftPnl !== null) {
+          await db.brainSample.update({
+            where: { id: s.id },
+            data: { outcome: outcomeOf(ftPnl), pnlPct: ftPnl, ftOutcome: ft, ftPnlPct: ftPnl, evaluatedAt: new Date() },
+          })
+          evaluated++
+          if (ft === 'tp') tpHits++
+          else slHits++
         }
       }
-
-      await db.brainSample.update({
-        where: { id: s.id },
-        data: {
-          outcome,
-          pnlPct: rawPnl,
-          ftOutcome: ft,
-          ftPnlPct: ftPnl,
-          evaluatedAt: new Date(),
-        },
-      })
-      evaluated++
-      if (ft === 'tp') tpHits++
-      else if (ft === 'sl') slHits++
-      else timeouts++
     }
   }
   return { evaluated, tpHits, slHits, timeouts }
 }
 
-// ─── Training (per-feature bandit, gated by MIN_SAMPLES_FOR_TRAINING) ───
+// ─── Training v2 (time-decayed, magnitude-weighted, Laplace-smoothed bandit) ───
+// Upgrades vs v1:
+//  • votes weighted by sample recency (21-day half-life) and |pnl| magnitude
+//  • Laplace-smoothed agreement rate → early noise can't swing weights
+//  • adaptive step: bigger evidence gap ⇒ bigger (still capped) weight move
+//  • per-strategy trust multipliers learned from real ft outcomes
+
+const TRAIN_TAKE = 3000
+const HALF_LIFE_DAYS = 21
+const MIN_VOTES_PER_FEATURE = 15
+const MIN_SAMPLES_PER_STRATEGY = 8
 
 export async function trainBrain(): Promise<{ trained: boolean; detail: string; evaluatedCount: number }> {
   const evaluated = await db.brainSample.findMany({
     where: { evaluatedAt: { not: null } },
-    select: { featuresJson: true, ftPnlPct: true, pnlPct: true, createdAt: true },
+    select: { featuresJson: true, ftPnlPct: true, pnlPct: true, createdAt: true, strategy: true },
     orderBy: { createdAt: 'desc' },
-    take: 1000,
+    take: TRAIN_TAKE,
   })
   if (evaluated.length < MIN_SAMPLES_FOR_TRAINING) {
     const detail = `در انتظار نمونهٔ کافی برای آموزش: ${faNum(evaluated.length, 0)}/${faNum(MIN_SAMPLES_FOR_TRAINING, 0)}`
     await setSetting('brainTrainedAt', JSON.stringify({ at: Date.now(), trained: false, detail }))
     return { trained: false, detail, evaluatedCount: evaluated.length }
   }
+
+  const now = Date.now()
   const weights = await getBrainWeights()
-  const hits: Record<FeatureKey, { agree: number; total: number }> = Object.fromEntries(
-    FEATURE_KEYS.map((k) => [k, { agree: 0, total: 0 }]),
-  ) as Record<FeatureKey, { agree: number; total: number }>
+  const hits: Record<FeatureKey, { agreeW: number; totalW: number; n: number }> = Object.fromEntries(
+    FEATURE_KEYS.map((k) => [k, { agreeW: 0, totalW: 0, n: 0 }]),
+  ) as Record<FeatureKey, { agreeW: number; totalW: number; n: number }>
+  const strat = new Map<string, { wins: number; n: number }>()
 
   for (const s of evaluated) {
     const pnl = s.ftPnlPct ?? s.pnlPct ?? 0
     if (pnl === 0) continue
+    // vote weight = recency decay × move magnitude (floor 0.1×, cap 3×)
+    const ageDays = Math.max(0, (now - s.createdAt.getTime()) / 86_400_000)
+    const decay = Math.pow(0.5, ageDays / HALF_LIFE_DAYS)
+    const mag = Math.min(3, Math.max(0.1, Math.abs(pnl) / 2))
+    const w = decay * mag
     try {
       const feats = JSON.parse(s.featuresJson) as Partial<Record<FeatureKey, number>>
       for (const k of FEATURE_KEYS) {
         const v = feats[k]
         if (typeof v !== 'number' || Math.abs(v) < 0.05) continue
-        hits[k].total++
-        if (Math.sign(v) === Math.sign(pnl)) hits[k].agree++
+        const h = hits[k]
+        h.totalW += w
+        h.n++
+        if (Math.sign(v) === Math.sign(pnl)) h.agreeW += w
       }
     } catch {
       /* skip malformed */
+    }
+    if (s.strategy) {
+      const t = strat.get(s.strategy) ?? { wins: 0, n: 0 }
+      t.n++
+      if (pnl > 0) t.wins++
+      strat.set(s.strategy, t)
     }
   }
 
   const changes: string[] = []
   for (const k of FEATURE_KEYS) {
     const h = hits[k]
-    if (h.total < 20) continue
-    const rate = h.agree / h.total
+    if (h.n < MIN_VOTES_PER_FEATURE || h.totalW <= 0) continue
+    // Laplace-smoothed agreement rate (0.5 = coin flip)
+    const rate = (h.agreeW + 1) / (h.totalW + 2)
     const before = weights[k]
-    if (rate > 0.55) weights[k] = Math.min(DEFAULT_MAX[k] ?? 40, before * 1.05)
-    else if (rate < 0.45) weights[k] = Math.max(1, before * 0.96)
+    if (rate > 0.53) {
+      weights[k] = Math.min(DEFAULT_MAX[k] ?? 40, before * (1 + Math.min(0.06, (rate - 0.5) * 0.5)))
+    } else if (rate < 0.47) {
+      weights[k] = Math.max(1, before * (1 - Math.min(0.05, (0.5 - rate) * 0.5)))
+    }
     if (Math.abs(weights[k] - before) > 0.001) {
-      changes.push(`${FEATURE_FA[k]}: ${rate > 0.55 ? '↑' : '↓'} (نرخ ${faNum(rate * 100, 0)}٪)`)
+      changes.push(
+        `${FEATURE_FA[k]}: ${weights[k] > before ? '↑' : '↓'} ${faNum(before, 1)}→${faNum(weights[k], 1)} (نرخ ${faNum(rate * 100, 0)}٪)`,
+      )
     }
   }
   await setSetting('brainWeights', JSON.stringify(weights))
-  const detail = changes.length ? `وزن‌ها تنظیم شد — ${changes.join('، ')}` : 'وزن‌ها بدون تغییر (سیگنال کافی نیست)'
-  await setSetting('brainTrainedAt', JSON.stringify({ at: Date.now(), trained: true, detail }))
+
+  // strategy trust v2: Laplace-smoothed win rate → multiplier in [0.75, 1.2]
+  // (winRate 0.5 → ×1.00, 0.3 → ×0.90, 0.7 → ×1.10) — applied by radar thresholds
+  const trust: Record<string, number> = {}
+  const trustFa: string[] = []
+  for (const [st, t] of strat) {
+    if (t.n < MIN_SAMPLES_PER_STRATEGY) continue
+    const wr = (t.wins + 1) / (t.n + 2)
+    const mult = Math.max(0.75, Math.min(1.2, 0.75 + 0.5 * wr))
+    trust[st] = Math.round(mult * 1000) / 1000
+    trustFa.push(`${STRATEGY_FA[st] ?? st} ×${faNum(mult, 2)}`)
+  }
+  await setSetting('strategyTrust', JSON.stringify(trust))
+
+  const parts: string[] = []
+  parts.push(changes.length ? `وزن‌ها تنظیم شد — ${changes.join('، ')}` : 'وزن‌ها بدون تغییر (شواهد کافی نیست)')
+  if (trustFa.length) parts.push(`اعتماد استراتژی‌ها: ${trustFa.join('، ')}`)
+  const detail = parts.join(' — ')
+  await setSetting('brainTrainedAt', JSON.stringify({ at: now, trained: true, detail }))
   return { trained: true, detail, evaluatedCount: evaluated.length }
 }
 
@@ -398,6 +481,7 @@ const DEFAULT_MAX: Partial<Record<FeatureKey, number>> = {
   oi: 10,
   stretch: 13,
   btc: 20,
+  mtf: 26,
 }
 
 // ─── Self-test: directional accuracy over the last 200 evaluated samples ───

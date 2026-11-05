@@ -151,12 +151,15 @@ async function jobCandleRefresh(): Promise<string> {
   const queue: { sym: string; iv: Interval }[] = []
   for (const iv of intervals) for (const sym of symbols) queue.push({ sym, iv })
   // bounded concurrency
+  // Brain v2: deeper bootstrap for 15m/1h (1000 bars ≈ 10d / 41d) — the extra
+  // history feeds the brain's backfill warm-start (Binance allows 1000/call)
   const workers = Array.from({ length: 6 }, async () => {
     while (queue.length) {
       const item = queue.shift()
       if (!item) break
       try {
-        stored += await fetchAndStoreCandles(item.sym, item.iv, (s, i, l) => getKlines(s, i, l))
+        const deep = item.iv === '15m' || item.iv === '1h' ? 1000 : 300
+        stored += await fetchAndStoreCandles(item.sym, item.iv, (s, i, l) => getKlines(s, i, l), deep)
       } catch {
         failed++
       }
@@ -238,9 +241,30 @@ async function jobEquitySnapshot(): Promise<string> {
 }
 
 async function jobBrainTrain(): Promise<string> {
+  // Brain v2: warm-start from history — deep replay once, then a daily 48h top-up.
+  // Lazy import keeps node-only APIs out of Edge bundles (same pattern as autonomy).
+  let bf = ''
+  try {
+    const { backfillBrain } = await import('@/lib/backfill')
+    const done = (await getSetting('brainBackfillDone')) ?? ''
+    if (done !== 'v2') {
+      bf = await backfillBrain({ deep: true })
+      await setSetting('brainBackfillDone', 'v2')
+    } else {
+      const t = tehranNow()
+      if (((await getSetting('backfillLastDate')) ?? '') !== t.date) {
+        bf = await backfillBrain({ deep: false })
+        await setSetting('backfillLastDate', t.date)
+      }
+    }
+  } catch (e) {
+    bf = `بازپرگیری ناموفق: ${e instanceof Error ? e.message.slice(0, 60) : 'خطا'}`
+  }
   const ev = await evaluateDueSamples()
   const tr = await trainBrain()
-  return `ارزیابی ${faNum(ev.evaluated, 0)} نمونه (TP:${faNum(ev.tpHits, 0)} SL:${faNum(ev.slHits, 0)}) — ${tr.detail}`
+  const parts = [`ارزیابی ${faNum(ev.evaluated, 0)} نمونه (TP:${faNum(ev.tpHits, 0)} SL:${faNum(ev.slHits, 0)})`, tr.detail]
+  if (bf) parts.push(bf)
+  return parts.join(' — ')
 }
 
 async function jobSelfTest(): Promise<string> {

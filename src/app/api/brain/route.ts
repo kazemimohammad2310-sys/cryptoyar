@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db, ensurePragmas } from '@/lib/db'
 import { ensureBooted } from '@/lib/boot'
-import { getBrainWeights, getSetting, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
+import { getBrainWeights, getSetting, getStrategyTrust, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
 import { runSelfTest, MIN_SAMPLES_FOR_TRAINING } from '@/lib/brain'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,7 @@ export async function GET() {
     await ensurePragmas()
     await ensureBooted()
 
-    const [total, evaluated, pending, weights, trainedAt, accuracyRaw, historyRaw] = await Promise.all([
+    const [total, evaluated, pending, weights, trainedAt, accuracyRaw, historyRaw, trust] = await Promise.all([
       db.brainSample.count(),
       db.brainSample.count({ where: { evaluatedAt: { not: null } } }),
       db.brainSample.count({ where: { evaluatedAt: null } }),
@@ -19,6 +19,7 @@ export async function GET() {
       getSetting('brainTrainedAt'),
       getSetting('brainAccuracy'),
       getSetting('brainHistory'),
+      getStrategyTrust(),
     ])
 
     const selfTest = await runSelfTest().catch(() => null)
@@ -47,6 +48,7 @@ export async function GET() {
     return NextResponse.json({
       counts: { total, evaluated, pending, coldStart: total < MIN_SAMPLES_FOR_TRAINING, minForTraining: MIN_SAMPLES_FOR_TRAINING },
       weights: FEATURE_KEYS.map((k: FeatureKey) => ({ key: k, weight: weights[k] })),
+      strategyTrust: trust,
       training,
       selfTest,
       history,
