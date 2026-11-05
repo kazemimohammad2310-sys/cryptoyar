@@ -37,10 +37,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   botMinScore: '65',
   botMaxOpen: '6',
   botCooldownHours: '6',
-  // futures (paper) — اهرم متناسب و قابل تنظیم
-  futuresLeverageMode: 'auto', // auto = اهرم متناسب با ریسک/بنیاد | fixed = ثابت
-  futuresMaxLeverage: '10', // سقف مطلق اهرم
-  futuresFixedLeverage: '3', // اهرم ثابت وقتی حالت fixed است
+  // futures (paper) — اهرم متناسب و قابل تنظیم (الان: ثابت ×۲۰ به درخواست کاربر)
+  futuresLeverageMode: 'fixed', // auto = اهرم متناسب با ریسک/بنیاد | fixed = ثابت
+  futuresMaxLeverage: '20', // سقف مطلق اهرم
+  futuresFixedLeverage: '20', // اهرم ثابت وقتی حالت fixed است
   botExpertGate: 'on', // دروازهٔ استادی: فیلترهای حرفه‌ای پیش از ورود
   // bookkeeping
   selftestLastDate: '',
