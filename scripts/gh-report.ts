@@ -1,6 +1,6 @@
 // ─── CryptoYar Free — static dashboard generator (GitHub Pages) ───
 // Reads the current DB state and writes a self-contained RTL HTML dashboard
-// (6 tabs, mobile-first) + data.json into ./site (deployed by the workflow).
+// (7 tabs, mobile-first: داشبورد/رادار/ارزها/صندوق/مغز/شیفت‌شب/راهنما) + data.json into ./site (deployed by the workflow).
 
 import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'fs'
 import { db, ensurePragmas } from '@/lib/db'
@@ -8,7 +8,8 @@ import { getSetting, getBrainWeights, getBotConfig, type FeatureKey } from '@/li
 import { currentEquity } from '@/lib/fund'
 import { runSelfTest, STRATEGY_FA as STRATEGY_FA_LOCAL } from '@/lib/brain'
 import { BOT_PREFIX } from '@/lib/autotrader'
-import { faNum, faPct } from '@/lib/fa'
+import { computeFundamentals, faBigUsd, type FundamentalRow } from '@/lib/fundamentals'
+import { faNum, faPct, faPrice } from '@/lib/fa'
 
 const FA_TIME = new Intl.DateTimeFormat('fa-IR', {
   timeZone: 'Asia/Tehran',
@@ -105,6 +106,16 @@ async function main(): Promise<void> {
   const strategyTrust = trustRaw ? (JSON.parse(trustRaw) as Record<string, number>) : {}
 
   const health = healthRaw ? (JSON.parse(healthRaw) as Record<string, boolean>) : null
+
+  // وضعیت بنیادی + جزییات هر ارز (کش ۱۰ دقیقه‌ای — بدون تماس API اضافه)
+  const fundSnap = await computeFundamentals({ maxAgeMs: 10 * 60_000 }).catch(() => null)
+  const fundBySymbol = new Map<string, FundamentalRow>((fundSnap?.rows ?? []).map((r) => [r.symbol, r]))
+  const openSignalBySymbol = new Map<string, (typeof signals)[number]>()
+  for (const s of signals) {
+    if ((s.status === 'open' || s.status === 'registered') && !openSignalBySymbol.has(s.symbol)) openSignalBySymbol.set(s.symbol, s)
+  }
+  const posBySymbol = new Map(positions.map((p) => [p.symbol, p]))
+
   const equityAsc = equityPoints.slice().reverse()
   const unrealized = positions.reduce((s, p) => {
     const dir = p.side === 'short' ? -1 : 1
@@ -196,6 +207,75 @@ async function main(): Promise<void> {
       </div>
     </div>`
 
+  const fundBadge = (symbol: string): string => {
+    const fr = fundBySymbol.get(symbol)
+    return fr ? `<span class="badge ${fr.level}">${esc(fr.levelFa)} ${faNum(fr.score, 0)}</span>` : ''
+  }
+
+  const coinCard = (r: FundamentalRow): string => {
+    const sig = openSignalBySymbol.get(r.symbol)
+    const pos = posBySymbol.get(r.symbol)
+    const perfCls = (v: number | null) => (v === null ? '' : v >= 0 ? 'up' : 'down')
+    return `<details class="coin">
+      <summary>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0">
+            <span class="rankchip">${faNum(r.rank, 0)}</span>
+            <div style="min-width:0">
+              <b style="font-size:12px">${esc(r.base)}/USDT</b>
+              <div class="sub">${esc(r.name)}</div>
+            </div>
+          </div>
+          <div style="text-align:left;flex-shrink:0">
+            <div>${fundBadge(r.symbol)}</div>
+            <div class="sub" style="margin-top:3px">${faPrice(r.price)} · <span class="${(r.change24h ?? 0) >= 0 ? 'up' : 'down'}">${r.change24h === null ? '—' : faPct(r.change24h, 1, true)}</span> ۲۴س</div>
+          </div>
+        </div>
+      </summary>
+      <div class="cdetail">
+        <div class="cmetrics">
+          <div class="cmet"><span>حجم روزانه</span><b>${faBigUsd(r.volume24h)}</b></div>
+          <div class="cmet"><span>ارزش بازار</span><b>${faBigUsd(r.marketCap > 0 ? r.marketCap : null)}</b></div>
+          <div class="cmet"><span>نرخ فاندینگ</span><b>${r.fundingRate === null ? '—' : faPct(r.fundingRate * 100, 3, true)}</b></div>
+          <div class="cmet"><span>نوسان روزانه</span><b>${r.volatilityPct === null ? '—' : `${faNum(r.volatilityPct, 1)}٪`}</b></div>
+          <div class="cmet"><span>RSI روزانه</span><b>${r.rsi1d === null ? '—' : faNum(r.rsi1d, 0)}</b></div>
+          <div class="cmet"><span>روند روزانه</span><b>${esc(r.trendFa)}</b></div>
+          <div class="cmet"><span>بازده ۷روزه</span><b class="${perfCls(r.perf7d)}">${r.perf7d === null ? '—' : faPct(r.perf7d, 1, true)}</b></div>
+          <div class="cmet"><span>بازده ۳۰روزه</span><b class="${perfCls(r.perf30d)}">${r.perf30d === null ? '—' : faPct(r.perf30d, 1, true)}</b></div>
+        </div>
+        <div class="reason">${r.reasonsFa.map((x) => `• ${esc(x)}`).join('<br>')}</div>
+        ${sig ? `<div class="reason" style="margin-top:7px">سیگنال فعال: <b>${sideFa(sig.side)}</b> با امتیاز ${faNum(sig.score, 0)} — ${sigStatusFa(sig.status)}</div>` : ''}
+        ${pos ? `<div class="reason" style="margin-top:4px">پوزیشن باز در صندوق: ${sideFa(pos.side)} · سود/زیان فعلی <b class="${(pos.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(pos.pnlPct ?? 0, 2)}</b></div>` : ''}
+      </div>
+    </details>`
+  }
+
+  const marketChips = [
+    fundSnap?.global && fundSnap.global.totalMarketCap > 0 ? `ارزش کل بازار: <b>${faBigUsd(fundSnap.global.totalMarketCap)}</b>` : null,
+    fundSnap?.global && fundSnap.global.btcDominance > 0 ? `برتری بیت‌کوین: <b>${faNum(fundSnap.global.btcDominance, 1)}٪</b>` : null,
+    fundSnap?.fearGreed && fundSnap.fearGreed.value > 0 ? `شاخص ترس‌وطمع: <b>${faNum(fundSnap.fearGreed.value, 0)}</b> (${esc(fundSnap.fearGreed.classificationFa)})` : null,
+  ]
+    .filter((x): x is string => Boolean(x))
+    .map((x) => `<span class="pill">${x}</span>`)
+    .join(' ')
+
+  const tabCoins = fundSnap && fundSnap.rows.length
+    ? `<div class="card">
+        <h2>وضعیت بنیادی بازار چطور سنجیده می‌شود؟</h2>
+        <div class="reason">امتیاز بنیادی هر ارز (۰ تا ۱۰۰) از ترکیب ۵ عامل ساخته می‌شود: رتبه بازار (۳۰ امتیاز) + نقدشوندگی حجم روزانه (۲۵) + باثباتی نوسان (۲۰) + سلامت روند روزانه (۱۵) + فشار فاندینگ (۱۰). «بنیاد قوی» یعنی پروژهٔ بزرگ، پرحجم و کم‌ریسک؛ «بنیاد ضعیف» یعنی پروژهٔ کوچک‌تر یا پرنوسان که ریسک بالاتری دارد.</div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${marketChips}</div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="badge strong">بنیاد قوی · ۷۰ به بالا</span>
+          <span class="badge mid">بنیاد متوسط · ۵۰ تا ۶۹</span>
+          <span class="badge weak">بنیاد ضعیف · زیر ۵۰</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>ارزهای تحت پوشش (${faNum(fundSnap.rows.length, 0)}) — برای دیدن جزییات، روی هر ردیف بزنید</h2>
+        ${fundSnap.rows.map((r) => coinCard(r)).join('')}
+      </div>`
+    : '<div class="card"><div class="reason">دادهٔ بنیادی هنوز جمع نشده — بعد از اولین چرخهٔ کامل داده‌ها پر می‌شود.</div></div>'
+
   const tabRadar = signals.length
     ? `<div class="card">
         ${signals
@@ -203,7 +283,10 @@ async function main(): Promise<void> {
             (s) => `<div style="padding:9px 0;border-bottom:1px solid #1e242c">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
           <b>${esc(s.symbol.replace('USDT', ''))}/USDT — ${sideFa(s.side)}</b>
-          <span class="pill ${s.status === 'registered' ? 'reg' : ''}">${sigStatusFa(s.status)}</span>
+          <span style="display:flex;gap:5px;align-items:center">
+            ${fundBadge(s.symbol)}
+            <span class="pill ${s.status === 'registered' ? 'reg' : ''}">${sigStatusFa(s.status)}</span>
+          </span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
           <span class="bar" style="flex:1"><i style="width:${Math.max(3, Math.min(100, s.score))}%"></i></span>
@@ -360,7 +443,8 @@ async function main(): Promise<void> {
       <h2>هر بخش چه می‌گوید؟</h2>
       <div class="reason" style="line-height:2">
         <b>داشبورد:</b> خلاصهٔ کل سامانه — دارایی، سلامت منابع داده و وضعیت وظایف.<br>
-        <b>رادار فرصت‌ها:</b> سیگنال‌های خرید/فروش با امتیاز، حد ضرر و حد سود؛ «ثبت‌شده در صندوق» یعنی وارد شبیه‌سازی شده.<br>
+        <b>رادار فرصت‌ها:</b> سیگنال‌های خرید/فروش با امتیاز، حد ضرر و حد سود + نشان وضعیت بنیادی همان ارز؛ «ثبت‌شده در صندوق» یعنی وارد شبیه‌سازی شده.<br>
+        <b>ارزها:</b> برای هر یک از ۵۰ ارزِ تحت پوشش، امتیاز و وضعیت بنیادی (رتبه بازار، نقدشوندگی، نوسان، روند، فاندینگ) به‌همراه جزییات کامل: قیمت، حجم، ارزش بازار، بازده ۷ و ۳۰ روزه و دلایل فارسی — روی هر ردیف بزنید تا باز شود.<br>
         <b>صندوق شبیه‌ساز:</b> پوزیشن‌های باز و بسته‌شده با سود/زیان — مثل حساب آزمایشی.<br>
         <b>مغز یادگیرنده:</b> از نتیجهٔ سیگنال‌ها یاد می‌گیرد و وزن‌ها را خودکار تنظیم می‌کند.<br>
         <b>شیفت‌شب:</b> موتور زمان‌بندی که ۲۴ ساعته بدون شما کار می‌کند.<br>
@@ -407,6 +491,23 @@ async function main(): Promise<void> {
   th { color:#848e9c; font-weight:400; }
   .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; border:1px solid #1e242c; color:#848e9c; }
   .pill.reg { border-color:rgba(14,203,129,.5); color:#0ecb81; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; white-space:nowrap; }
+  .badge.strong { background:rgba(14,203,129,.14); color:#0ecb81; }
+  .badge.mid { background:rgba(240,185,11,.14); color:#f0b90b; }
+  .badge.weak { background:rgba(246,70,93,.14); color:#f6465d; }
+  .rankchip { display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:22px; padding:0 4px; border-radius:7px; background:#1e242c; color:#f0b90b; font-size:10px; font-weight:700; }
+  details.coin { border-bottom:1px solid #1e242c; }
+  details.coin:last-child { border-bottom:none; }
+  details.coin summary { cursor:pointer; list-style:none; padding:10px 0; }
+  details.coin summary::-webkit-details-marker { display:none; }
+  details.coin summary::after { content:'⌄'; float:left; color:#848e9c; font-size:13px; }
+  details.coin[open] summary::after { content:'⌃'; }
+  details.coin[open] summary { border-bottom:1px dashed #1e242c; margin-bottom:8px; }
+  .cdetail { padding:2px 0 12px; }
+  .cmetrics { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:6px 0 9px; }
+  .cmet { background:#0b0e11; border:1px solid #1e242c; border-radius:8px; padding:7px 9px; }
+  .cmet span { display:block; color:#848e9c; font-size:10px; margin-bottom:2px; }
+  .cmet b { font-size:11px; }
   .reason { font-size:11px; color:#848e9c; line-height:1.8; }
   svg.spark { width:100%; height:60px; }
   .bar { height:6px; background:#1e242c; border-radius:99px; overflow:hidden; }
@@ -424,6 +525,7 @@ async function main(): Promise<void> {
   <nav class="tabs" aria-label="بخش‌های داشبورد">
     <button type="button" class="tabbtn" data-go="dashboard">داشبورد</button>
     <button type="button" class="tabbtn" data-go="radar">رادار فرصت‌ها</button>
+    <button type="button" class="tabbtn" data-go="coins">ارزها</button>
     <button type="button" class="tabbtn" data-go="fund">صندوق شبیه‌ساز</button>
     <button type="button" class="tabbtn" data-go="brain">مغز یادگیرنده</button>
     <button type="button" class="tabbtn" data-go="nightshift">شیفت‌شب</button>
@@ -432,6 +534,7 @@ async function main(): Promise<void> {
 
   <section data-tab="dashboard">${tabDashboard}</section>
   <section data-tab="radar" hidden>${tabRadar}</section>
+  <section data-tab="coins" hidden>${tabCoins}</section>
   <section data-tab="fund" hidden>${tabFund}</section>
   <section data-tab="brain" hidden>${tabBrain}</section>
   <section data-tab="nightshift" hidden>${tabNightshift}</section>
@@ -474,6 +577,32 @@ async function main(): Promise<void> {
         candleCount,
         positions: positions.map((p) => ({ symbol: p.symbol, side: p.side, pnlPct: p.pnlPct })),
         signals: signals.map((s) => ({ symbol: s.symbol, side: s.side, score: s.score, strategy: s.strategy, status: s.status })),
+        fundamentals: fundSnap
+          ? {
+              at: fundSnap.at,
+              fearGreed: fundSnap.fearGreed,
+              global: fundSnap.global,
+              rows: fundSnap.rows.map((r) => ({
+                symbol: r.symbol,
+                base: r.base,
+                rank: r.rank,
+                price: r.price,
+                change24h: r.change24h,
+                volume24h: r.volume24h,
+                marketCap: r.marketCap,
+                fundingRate: r.fundingRate,
+                rsi1d: r.rsi1d,
+                volatilityPct: r.volatilityPct,
+                perf7d: r.perf7d,
+                perf30d: r.perf30d,
+                trendFa: r.trendFa,
+                score: r.score,
+                level: r.level,
+                levelFa: r.levelFa,
+                reasonsFa: r.reasonsFa,
+              })),
+            }
+          : null,
         brain: { total: sampleTotal, evaluated: sampleEvaluated, wins: sampleWins },
         bot: { enabled: bot.enabled, minScore: bot.minScore, maxOpen: bot.maxOpen, openPositions: botOpenCount, totalPositions: botTotalCount },
       },
@@ -483,7 +612,7 @@ async function main(): Promise<void> {
     'utf8',
   )
   console.log(
-    `REPORT DONE — site/index.html (${(html.length / 1024).toFixed(1)}KB) tabs=6, positions=${positions.length}, signals=${signals.length}, brainEval=${sampleEvaluated}/${sampleTotal}`,
+    `REPORT DONE — site/index.html (${(html.length / 1024).toFixed(1)}KB) tabs=7, coins=${fundSnap?.rows.length ?? 0}, positions=${positions.length}, signals=${signals.length}, brainEval=${sampleEvaluated}/${sampleTotal}`,
   )
 }
 
