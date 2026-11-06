@@ -2,7 +2,7 @@
 
 import { Activity, CircleDollarSign, Sparkles, Wallet } from 'lucide-react'
 import { usePolling } from '@/components/cryptoyar/usePolling'
-import { EmptyNote, PnlText, SectionTitle, SideChip, SkeletonBlock, Sparkline, StatCard } from '@/components/cryptoyar/kit'
+import { EmptyNote, PnlText, SectionTitle, SideChip, SkeletonBlock, Sparkline, StatCard, StatusDot } from '@/components/cryptoyar/kit'
 import { faNum, faPct, faPrice, faTimeAgo } from '@/lib/fa'
 import type { FundResp, MarketResp, SettingsResp } from '@/components/cryptoyar/types'
 
@@ -125,6 +125,34 @@ export function DashboardTab() {
                   </>
                 ) : (
                   'پایش در اولین چرخه فعال می‌شود'
+                )}
+              </p>
+              <p>
+                <span className="font-bold">ضربان ابر:</span>{' '}
+                {au?.cloud ? (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 align-middle">
+                      <StatusDot ok={!au.cloud.stale} pulse={!au.cloud.stale} />
+                      {au.cloud.lastCycleCommitAt ? (
+                        <>
+                          آخرین چرخهٔ ابری {faTimeAgo(au.cloud.lastCycleCommitAt)}
+                          {au.cloud.stale ? <span className="cy-down"> — کندتر از حد معمول</span> : null}
+                        </>
+                      ) : (
+                        'در انتظار اولین چرخه'
+                      )}
+                    </span>
+                    {au.cloud.dispatchCount ? (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · نگهبان {faNum(au.cloud.dispatchCount, 0)} بار چرخهٔ جاافتاده را دوباره روشن کرده
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground"> · نگهبان ضربان فعال است</span>
+                    )}
+                  </>
+                ) : (
+                  'پایش ضربان ابر در اولین بررسی فعال می‌شود'
                 )}
               </p>
               <p>

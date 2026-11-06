@@ -96,16 +96,30 @@ async function main(): Promise<void> {
     db.brainLesson.findMany({ orderBy: [{ kind: 'asc' }, { confidence: 'desc' }], take: 40 }),
   ])
 
-  const [healRaw, optRaw, verRaw, trustRaw] = await Promise.all([
+  const [healRaw, optRaw, verRaw, trustRaw, cloudRaw] = await Promise.all([
     getSetting('healSnapshot'),
     getSetting('optimizeSnapshot'),
     getSetting('versionInfo'),
     getSetting('strategyTrust'),
+    getSetting('cloudWatchdog'),
   ])
   const healSnap = healRaw ? (JSON.parse(healRaw) as { totalHeals?: number; recentActions?: string[]; sickNow?: string[] }) : null
   const optSnap = optRaw ? (JSON.parse(optRaw) as { sizeMB?: number | null; riskBefore?: number; riskAfter?: number; samples?: number; winRate?: number; action?: string }) : null
   const verSnap = verRaw ? (JSON.parse(verRaw) as { sha?: string; subject?: string; updatedCount?: number; syncCount?: number }) : null
   const strategyTrust = trustRaw ? (JSON.parse(trustRaw) as Record<string, number>) : {}
+  const cloudWatch = cloudRaw
+    ? (JSON.parse(cloudRaw) as { lastCycleCommitAt?: number; ageMin?: number | null; stale?: boolean; dispatchCount?: number; lastActionFa?: string; at?: number })
+    : null
+  // ضربان چرخهٔ ابری: فاصله از آخرین کامیت موفق چرخه (وضعیت نگهبان محلی + خود چرخه)
+  const cycleAgeMin = cloudWatch?.lastCycleCommitAt
+    ? Math.max(0, Math.round((Date.now() - cloudWatch.lastCycleCommitAt) / 60_000))
+    : null
+  const heartbeatFa =
+    cycleAgeMin === null
+      ? 'در انتظار اولین پایش نگهبان'
+      : cycleAgeMin <= 2
+        ? 'همین حالا ✓'
+        : `${faNum(cycleAgeMin, 0)} دقیقه پیش${(cloudWatch?.stale || cycleAgeMin > 40) ? ' <b class="warn">— کندتر از حد معمول، نگهبان در حال رسیدگی</b>' : ''}`
 
   const health = healthRaw ? (JSON.parse(healthRaw) as Record<string, boolean>) : null
 
@@ -205,6 +219,13 @@ async function main(): Promise<void> {
             healSnap
               ? `${faNum(healSnap.totalHeals ?? 0, 0)} اقدام ترمیم تا امروز${healSnap.recentActions?.length ? ` — آخرین: ${esc(String(healSnap.recentActions[0]))}` : ' — فعلاً نیازی به ترمیم نبوده'}${healSnap.sickNow?.length ? ` · <b class="warn">${faNum(healSnap.sickNow.length, 0)} وظیفهٔ ناسالم: ${esc(healSnap.sickNow.join('، '))}</b>` : ''}`
               : 'پایش هنوز فعال نشده'
+          }
+        </div>
+        <div class="reason" style="margin-top:6px">
+          <b>ضربان ابر و نگهبان:</b> آخرین چرخهٔ ابری: ${heartbeatFa}${
+            cloudWatch?.dispatchCount
+              ? ` · نگهبان <b>${faNum(cloudWatch.dispatchCount, 0)}</b> بار چرخهٔ جاافتادهٔ کرون را دوباره روشن کرده${cloudWatch.lastActionFa ? ` — ${esc(cloudWatch.lastActionFa)}` : ''}`
+              : ' · نگهبان ضربان فعال است'
           }
         </div>
         <div class="reason" style="margin-top:6px">

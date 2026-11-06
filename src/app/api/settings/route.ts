@@ -20,7 +20,7 @@ export async function GET() {
   try {
     await ensurePragmas()
     await ensureBooted()
-    const [mode, risk, weights, bot, futures, healRaw, optRaw, verRaw] = await Promise.all([
+    const [mode, risk, weights, bot, futures, healRaw, optRaw, verRaw, cloudRaw] = await Promise.all([
       getMode(),
       getRiskConfig(),
       getBrainWeights(),
@@ -29,6 +29,7 @@ export async function GET() {
       getSetting('healSnapshot'),
       getSetting('optimizeSnapshot'),
       getSetting('versionInfo'),
+      getSetting('cloudWatchdog'),
     ])
     return NextResponse.json({
       mode,
@@ -47,6 +48,7 @@ export async function GET() {
         heal: parseSnap<{ at: number; totalHeals: number; recentActions: string[]; sickNow: string[] }>(healRaw),
         optimize: parseSnap<{ at: number; sizeMB: number | null; riskBefore: number; riskAfter: number; samples: number; winRate: number; action: string }>(optRaw),
         version: parseSnap<{ at: number; sha: string; subject: string; updatedCount: number; syncCount: number }>(verRaw),
+        cloud: parseSnap<{ at: number; lastCycleCommitAt: number; ageMin: number | null; stale: boolean; dispatchCount: number; lastActionFa: string }>(cloudRaw),
       },
     })
   } catch (e) {

@@ -150,5 +150,6 @@ export interface SettingsResp {
     heal: { at: number; totalHeals: number; recentActions: string[]; sickNow: string[] } | null
     optimize: { at: number; sizeMB: number | null; riskBefore: number; riskAfter: number; samples: number; winRate: number; action: string } | null
     version: { at: number; sha: string; subject: string; updatedCount: number; syncCount: number } | null
+    cloud: { at: number; lastCycleCommitAt: number; ageMin: number | null; stale: boolean; dispatchCount: number; lastActionFa: string } | null
   }
 }

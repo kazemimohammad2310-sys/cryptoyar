@@ -112,10 +112,15 @@ function dailyJob(jobName: string, targetHHmm: string, dateKey: string, fn: () =
       const last = (await getSetting(dateKey)) ?? ''
       const [hh, mm] = targetHHmm.split(':').map(Number)
       const cur = { h: Number(t.hhmm.slice(0, 2)), m: Number(t.hhmm.slice(3, 5)) }
-      const inWindow = cur.h === hh && cur.m >= mm && cur.m < mm + 10
-      if (!inWindow || last === t.date) return ` outside window (${t.hhmm} تهران)`
+      // «اولین فرصتِ بعد از ساعت هدف» — با هر آهنگی که چرخه‌ها اجرا شوند (حتی
+      // چرخه‌های مبهمِ کرون ابری) کار روزانه دقیقاً یک‌بار در روز انجام می‌شود.
+      // قبلاً پنجرهٔ ۱۰ دقیقه‌ای بود که روی ابر هرگز نمی‌گرفت (باگ تأییدشده).
+      const inWindow = cur.h * 60 + cur.m >= hh * 60 + mm
+      if (!inWindow || last === t.date) return ` در انتظار پنجرهٔ روزانه (${targetHHmm} تهران — امروز: ${last === t.date ? 'انجام شد' : 'هنوز'})`
+      const result = await fn()
+      // تاریخ فقط بعد از موفقیت ثبت شود تا اگر اجرا خطا خورد، در بررسی بعدی دوباره تلاش شود
       await setSetting(dateKey, t.date)
-      return await fn()
+      return result
     },
   }
 }

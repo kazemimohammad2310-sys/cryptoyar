@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Activity, Brain, Coins, MoonStar, Radar, Settings as SettingsIcon, Wallet } from 'lucide-react'
 import { usePolling } from '@/components/cryptoyar/usePolling'
 import { StatusDot } from '@/components/cryptoyar/kit'
@@ -38,6 +38,13 @@ interface HealthLite {
 export function CryptoyarApp() {
   const [tab, setTab] = useState<TabKey>('dashboard')
   const health = usePolling<HealthLite>('/api/health', 30_000)
+  const tablistRef = useRef<HTMLDivElement>(null)
+
+  // تب فعال روی موبایل همیشه داخل نوار دیده شود (کاربر نباید دنبالش اسکرول کند)
+  useEffect(() => {
+    const el = tablistRef.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')
+    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [tab])
 
   const coreOk = health.data ? health.data.sources.binance : null
 
@@ -67,7 +74,7 @@ export function CryptoyarApp() {
 
       {/* ─── Tab bar ─── */}
       <nav aria-label="بخش‌های سامانه" className="-mx-1 overflow-x-auto pb-1">
-        <div role="tablist" className="flex min-w-max items-center gap-1 border-b px-1">
+        <div ref={tablistRef} role="tablist" className="flex min-w-max items-center gap-1 border-b px-1">
           {TABS.map((t) => {
             const Icon = t.icon
             const active = tab === t.key

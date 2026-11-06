@@ -30,8 +30,15 @@ export function usePolling<T>(url: string, intervalMs = 30_000): PollState<T> {
     let timer: ReturnType<typeof setTimeout> | null = null
 
     const run = async (): Promise<void> => {
+      // اگر صفحه مخفی است (تب گوشی عوض شده) fetch نزن — صرفه‌جویی باتری و سرور
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = setTimeout(() => void run(), Math.max(intervalMs, 15_000))
+        return
+      }
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
+      const abortT = ctrl ? setTimeout(() => ctrl.abort(), 15_000) : null
       try {
-        const res = await fetch(url, { cache: 'no-store' })
+        const res = await fetch(url, { cache: 'no-store', signal: ctrl?.signal })
         const json: unknown = await res.json().catch(() => null)
         if (!alive.current) return
         if (!res.ok) {
@@ -43,16 +50,27 @@ export function usePolling<T>(url: string, intervalMs = 30_000): PollState<T> {
         setUpdatedAt(Date.now())
       } catch (e) {
         if (!alive.current) return
-        setError(e instanceof Error ? e.message : 'خطای ارتباط با سرور')
+        setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'خطای ارتباط با سرور')
       } finally {
+        if (abortT) clearTimeout(abortT)
         if (alive.current) setLoading(false)
       }
       if (alive.current && intervalMs > 0) timer = setTimeout(() => void run(), intervalMs)
     }
 
+    // برگشت به صفحه ⇒ بلافاصله تازه‌سازی (داده کهنه نماند)
+    const onVisible = (): void => {
+      if (!document.hidden && alive.current) {
+        if (timer) clearTimeout(timer)
+        void run()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
     void run()
     return () => {
       alive.current = false
+      document.removeEventListener('visibilitychange', onVisible)
       if (timer) clearTimeout(timer)
     }
   }, [url, intervalMs, tick])

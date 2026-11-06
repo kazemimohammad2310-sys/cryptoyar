@@ -27,6 +27,7 @@ const PIPELINE_JOBS = [
   'cmc-refresh',
   'radar-scan',
   'fund-mark',
+  'bot-trade',
   'brain-train',
   'equity-snapshot',
   'health',
@@ -160,6 +161,16 @@ export async function runSelfHeal(): Promise<string> {
   }
   if (broken.length) actions.push(`${faNum(broken.length, 0)} پوزیشن با قیمت خراب اصلاح شد`)
 
+  // 1f. ضربان ابر — کرون ابری جاافتاده را دوباره روشن می‌کند (فقط محلی)
+  if (process.env.GITHUB_ACTIONS !== 'true') {
+    try {
+      const cw = await runCloudWatchdog()
+      if (cw.fa) actions.push(cw.fa)
+    } catch {
+      /* degrade — نگهبان بحرانی نیست */
+    }
+  }
+
   // snapshot for UI/reports
   const prev = parseSnap<{ totalHeals: number; recentActions: string[] }>(await getSetting('healSnapshot'))
   const snap = {
@@ -176,6 +187,106 @@ export async function runSelfHeal(): Promise<string> {
       : 'سامانه سالم است — نیازی به ترمیم نبود'
   }
   return `ترمیم خودکار: ${actions.join(' | ')}`
+}
+
+// ─── 1f) ضربان ابر (نگهبان) — کرونِ رایگان گیت‌هاب گاهی چرخه‌ها را ساعاتی جا می‌اندازد ───
+// اگر آخرین کامیت چرخهٔ ابری بیش از ۴۰ دقیقه قدیمی باشد، نگهبان یک اجرای تازه
+// (workflow_dispatch) فعال می‌کند — با سرد شدن ۳۰ دقیقه‌ای و گارد «اجرای در جریان».
+// فقط محلی؛ روی ابر معنا ندارد (خودش چرخهٔ در حال اجراست).
+
+const CLOUD_STALE_MS = 40 * 60_000
+const CLOUD_DISPATCH_COOLDOWN_MS = 30 * 60_000
+
+interface CloudCreds {
+  token: string
+  owner: string
+  repo: string
+}
+
+function ghHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `token ${token}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'cryptoyar-watchdog',
+  }
+}
+
+async function githubCreds(): Promise<CloudCreds | null> {
+  const r = await git(['remote', 'get-url', 'origin'], 15_000)
+  if (!r.ok) return null
+  const m = r.out.match(/https:\/\/([^@]+)@github\.com\/([^/]+)\/([^.\s]+?)(?:\.git)?\s*$/)
+  if (!m) return null
+  return { token: m[1], owner: m[2], repo: m[3] }
+}
+
+export interface CloudWatchdogResult {
+  fa: string
+  dispatched: boolean
+  stale: boolean
+}
+
+export async function runCloudWatchdog(now = Date.now()): Promise<CloudWatchdogResult> {
+  if (process.env.GITHUB_ACTIONS === 'true') return { fa: '', dispatched: false, stale: false }
+  const creds = await githubCreds()
+  if (!creds) return { fa: '', dispatched: false, stale: false }
+
+  // ضربان واقعی = آخرین اجرای موفق چرخهٔ ابری (منبع حقیقت: GitHub API —
+  // مستقل از پیام کامیت‌ها؛ کامیت‌های دادهٔ محلی نباید ضربان را ریست کنند)
+  type RunRow = { status?: string; conclusion?: string | null; updated_at?: string }
+  const j = await fetch(`https://api.github.com/repos/${creds.owner}/${creds.repo}/actions/runs?per_page=6`, {
+    headers: ghHeaders(creds.token),
+    cache: 'no-store',
+  })
+    .then((r) => r.json() as Promise<{ workflow_runs?: RunRow[] }>)
+    .catch(() => ({ workflow_runs: [] as RunRow[] }))
+  const runs = j.workflow_runs ?? []
+  const lastOk = runs.find((r) => r.status === 'completed' && r.conclusion === 'success' && r.updated_at)
+  const running = runs.some((r) => r.status === 'in_progress' || r.status === 'queued')
+  const lastCycleAt = lastOk?.updated_at ? Date.parse(lastOk.updated_at) : 0
+  const ageMin = lastCycleAt ? Math.round((now - lastCycleAt) / 60_000) : null
+  const stale = Boolean(lastCycleAt && now - lastCycleAt > CLOUD_STALE_MS)
+
+  const prev = parseSnap<{ dispatchCount?: number; lastDispatchAt?: number | null }>(await getSetting('cloudWatchdog'))
+
+  let dispatched = false
+  let actionFa = ''
+  if (stale) {
+    if (running) {
+      actionFa = `چرخهٔ ابری ${faNum(ageMin ?? 0, 0)} دقیقه‌ای کند است ولی یک اجرا در جریان/صف است`
+    } else {
+      const cooled = !prev.lastDispatchAt || now - prev.lastDispatchAt > CLOUD_DISPATCH_COOLDOWN_MS
+      if (!cooled) {
+        actionFa = `چرخهٔ ابری ${faNum(ageMin ?? 0, 0)} دقیقه‌ای کند است — فعال‌سازی اخیر انجام شده، در انتظار اجرا`
+      } else {
+        const res = await fetch(
+          `https://api.github.com/repos/${creds.owner}/${creds.repo}/actions/workflows/cycle.yml/dispatches`,
+          {
+            method: 'POST',
+            headers: { ...ghHeaders(creds.token), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ref: 'main' }),
+          },
+        ).catch(() => null)
+        if (res && res.status === 204) {
+          dispatched = true
+          actionFa = `چرخهٔ ابری ${faNum(ageMin ?? 0, 0)} دقیقه خاموش بود — نگهبان ضربان چرخهٔ تازه‌ای روشن کرد`
+        } else {
+          actionFa = `چرخهٔ ابری کند بود ولی فعال‌سازی ناموفق بود (${res ? res.status : 'شبکه در دسترس نیست'})`
+        }
+      }
+    }
+  }
+
+  const snap = {
+    at: now,
+    lastCycleCommitAt: lastCycleAt,
+    ageMin,
+    stale,
+    dispatchCount: (prev.dispatchCount ?? 0) + (dispatched ? 1 : 0),
+    lastDispatchAt: dispatched ? now : (prev.lastDispatchAt ?? null),
+    lastActionFa: actionFa || 'ضربان ابر طبیعی است',
+  }
+  await setSetting('cloudWatchdog', JSON.stringify(snap))
+  return { fa: actionFa, dispatched, stale }
 }
 
 // ─── 2) Self-Optimize + Self-Growth (خودبهینه‌سازی و خودرشد) ───
