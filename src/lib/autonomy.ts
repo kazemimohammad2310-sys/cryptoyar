@@ -534,7 +534,25 @@ export async function runSelfUpdate(): Promise<string> {
   if (files.length && files.every((f) => f === 'db/custom.db')) {
     const rs = await git(['reset', '--soft', remote])
     if (rs.ok) {
+      // Incident 2026-11-06 (commit 90af42b): reset --soft keeps the OLD index, so the
+      // following commit silently reverted every code file the remote had changed —
+      // it wiped the trade-reasons feature. Harden: re-sync the index to the new HEAD
+      // first, then stage ONLY the DB file, and refuse to commit anything else.
+      const unstaged = await git(['reset'], 30_000) // mixed reset: index ← HEAD, working tree untouched
+      if (!unstaged.ok) {
+        await saveVersionInfo({ mode: 'local', updated: false, note: 'همگام‌سازی داده متوقف شد (ایندکس)' })
+        return 'همگام‌سازی خودکار متوقف ماند — ایندکس گیت آماده نبود (داده دست‌نخورده ماند)'
+      }
       await git(['add', 'db/custom.db'])
+      const staged = (await git(['diff', '--cached', '--name-only'])).out
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (!staged.length || !staged.every((f) => f === 'db/custom.db')) {
+        await git(['reset'], 30_000).catch(() => undefined) // unstage — never commit code from a data sync
+        await saveVersionInfo({ mode: 'local', updated: false, note: 'همگام‌سازی داده متوقف شد (فایل غیر داده‌ای)' })
+        return 'همگام‌سازی خودکار متوقف ماند — تغییر غیر داده‌ای در مخزن دیده شد (نیاز به بررسی)'
+      }
       const cm = await git(['commit', '-m', 'data: local db snapshot (self-update sync)'])
       if (cm.ok) {
         const prev = parseSnap<{ syncCount: number }>(await getSetting('versionInfo'))
