@@ -123,6 +123,23 @@ model FundPosition {
   @@index([status])
 }
 
+// دانش‌نامهٔ مغز: قواعد طلایی تریدر حرفه‌ای (curriculum) + درس‌های کشف‌شده از بازار (pattern)
+model BrainLesson {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique
+  kind       String // curriculum | pattern
+  titleFa    String
+  bodyFa     String
+  statsFa    String   @default("") // آمار پشتیبان (فارسی) — برای درس‌های کشفی
+  confidence Int      @default(50) // ۰ تا ۱۰۰
+  delta      Float    @default(0) // تأثیر بر امتیاز سیگنال (−۸..+۸)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([kind, active])
+}
+
 model FundOrder {
   id        Int      @id @default(autoincrement())
   kind      String // open | close

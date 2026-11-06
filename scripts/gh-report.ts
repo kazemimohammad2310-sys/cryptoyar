@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   )
   const recentLogs = await db.jobLog.findMany({ orderBy: { startedAt: 'desc' }, take: 12 })
 
-  const [healthRaw, weights, bot, futures, equityNow, equityPoints, positions, closedPositions, signals, coins, candleCount, selfTest, sampleTotal, sampleEvaluated, sampleWins, closedCount, botOpenCount, botTotalCount, lastBotLog] = await Promise.all([
+  const [healthRaw, weights, bot, futures, equityNow, equityPoints, positions, closedPositions, signals, coins, candleCount, selfTest, sampleTotal, sampleEvaluated, sampleWins, closedCount, botOpenCount, botTotalCount, lastBotLog, brainLessons] = await Promise.all([
     getSetting('healthSnapshot'),
     getBrainWeights(),
     getBotConfig(),
@@ -93,6 +93,7 @@ async function main(): Promise<void> {
     db.fundPosition.count({ where: { status: 'open', reasonFa: { startsWith: BOT_PREFIX } } }),
     db.fundPosition.count({ where: { reasonFa: { startsWith: BOT_PREFIX } } }),
     db.jobLog.findFirst({ where: { job: 'bot-trade' }, orderBy: { startedAt: 'desc' } }),
+    db.brainLesson.findMany({ orderBy: [{ kind: 'asc' }, { confidence: 'desc' }], take: 40 }),
   ])
 
   const [healRaw, optRaw, verRaw, trustRaw] = await Promise.all([
@@ -419,6 +420,36 @@ async function main(): Promise<void> {
           .join('')}
       </div>`
           : '<div class="reason">هنوز نمونهٔ کافی برای سنجش اعتماد هر استراتژی جمع نشده — به‌مرور از نتایج واقعی یاد گرفته می‌شود.</div>'
+      }
+    </div>
+    <div class="card">
+      <h2>دانش‌نامهٔ تریدر حرفه‌ای + درس‌های آموخته از بازار</h2>
+      ${
+        brainLessons.length
+          ? (() => {
+              const cur = brainLessons.filter((l) => l.kind === 'curriculum')
+              const mined = brainLessons.filter((l) => l.kind === 'pattern' && l.active)
+              return `<div class="reason"><b>${faNum(cur.length, 0)} قاعدهٔ طلایی</b> همیشه در تصمیم‌ها اعمال می‌شود (دروازهٔ استادی، موتور ریسک، مدیریت پوزیشن):</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${cur.map((l) => `<span style="padding:4px 10px;border-radius:12px;font-size:11px;background:rgba(252,213,53,.1);color:#fcd535">${esc(l.titleFa)}</span>`).join('')}</div>
+      <div class="reason" style="margin-top:12px"><b>درس‌های کشف‌شده از داده‌های واقعی</b> (الگوهایی که نرخ بردشان از میانگین فاصله معنادار دارد — امتیاز سیگنال‌های مشابه ±دلتا می‌گیرد):</div>
+      ${
+        mined.length
+          ? `<div style="margin-top:8px;display:grid;gap:8px">${mined
+              .map(
+                (l) => `<div style="border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+              <b style="font-size:12px">${esc(l.titleFa)}</b>
+              <span style="flex-shrink:0;font-size:11px;font-weight:700;color:${l.delta >= 0 ? '#0ecb81' : '#f6465d'}">${l.delta > 0 ? '+' : ''}${faNum(l.delta, 1)} امتیاز</span>
+            </div>
+            <div class="sub" style="margin-top:4px">${esc(l.statsFa)} · اطمینان ${faNum(l.confidence, 0)}٪</div>
+            <div class="reason" style="margin-top:4px;font-size:11px">${esc(l.bodyFa)}</div>
+          </div>`,
+              )
+              .join('')}</div>`
+          : '<div class="reason" style="margin-top:8px">هنوز الگویی با شواهد کافی کشف نشده — با ارزیابی نمونه‌های بیشتر، درس‌های تازه همین‌جا ثبت می‌شوند.</div>'
+      }`
+            })()
+          : '<div class="reason">دانش‌نامه هنوز کاشته نشده — با اولین چرخه فعال می‌شود.</div>'
       }
     </div>`
 

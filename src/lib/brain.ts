@@ -3,6 +3,7 @@ import { getBrainWeights, getSetting, setSetting, FEATURE_KEYS, type FeatureKey 
 import { rsi, macd, emaSeries, atr, volumeZ, slopePct, lastClose } from '@/lib/indicators'
 import { loadCandles, type Interval } from '@/lib/candles'
 import type { CandleRow } from '@/lib/fetchers/binance'
+import { mineLessons } from '@/lib/lessons'
 
 // ─── Brain v2: explainable scoring engine + online learning loop (§4) ───
 // v2 upgrades: (a) new multi-timeframe 4h trend feature (mtf), (b) EARLY
@@ -464,9 +465,19 @@ export async function trainBrain(): Promise<{ trained: boolean; detail: string; 
   }
   await setSetting('strategyTrust', JSON.stringify(trust))
 
+  // Brain v3: کشف درس‌های شرطی از نتایج واقعی (الگوهایی که نرخ بردشان از میانگین فاصله دارد)
+  let lessonFa = 'الگوی جدیدی کشف نشد'
+  try {
+    const mined = await mineLessons()
+    if (mined.length) lessonFa = `درس‌های مغز: ${mined.join('، ')}`
+  } catch {
+    /* درس‌ها بحرانی نیستند */
+  }
+
   const parts: string[] = []
   parts.push(changes.length ? `وزن‌ها تنظیم شد — ${changes.join('، ')}` : 'وزن‌ها بدون تغییر (شواهد کافی نیست)')
   if (trustFa.length) parts.push(`اعتماد استراتژی‌ها: ${trustFa.join('، ')}`)
+  parts.push(lessonFa)
   const detail = parts.join(' — ')
   await setSetting('brainTrainedAt', JSON.stringify({ at: now, trained: true, detail }))
   return { trained: true, detail, evaluatedCount: evaluated.length }

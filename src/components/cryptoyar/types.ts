@@ -89,9 +89,22 @@ export interface FundResp {
   orders: { id: number; kind: string; symbol: string; side: string; qty: number; price: number; reasonFa: string; createdAt: number }[]
 }
 
+export interface BrainLessonRow {
+  id: number
+  key: string
+  kind: string // curriculum | pattern
+  titleFa: string
+  bodyFa: string
+  statsFa: string
+  confidence: number
+  delta: number
+  active: boolean
+}
+
 export interface BrainResp {
   counts: { total: number; evaluated: number; pending: number; coldStart: boolean; minForTraining: number }
   weights: { key: string; weight: number }[]
+  lessons?: BrainLessonRow[]
   training: { at: number; trained: boolean; detail: string } | null
   selfTest: {
     at: number

@@ -193,6 +193,16 @@ export async function runAutoTrader(): Promise<string> {
     return `مدار روزانه قطع شده (افت ${faNum(cb.drawdownPct, 1)}٪) — ورود جدید ممنوع — ${manageFa}`
   }
 
+  // قاعدهٔ حرفه‌ای (ترمز ضرر پیاپی): بعد از ۳ ضرر متوالیِ ربات، آستانهٔ ورود سخت‌گیرانه‌تر می‌شود
+  const lastBotCloses = await db.fundPosition.findMany({
+    where: { status: 'closed', reasonFa: { startsWith: BOT_PREFIX } },
+    orderBy: { closedAt: 'desc' },
+    take: 3,
+    select: { pnlUsdt: true },
+  })
+  const lossStreak = lastBotCloses.length === 3 && lastBotCloses.every((p) => (p.pnlUsdt ?? 0) <= 0)
+  const effMinScore = lossStreak ? bot.minScore + 8 : bot.minScore
+
   const botOpen = await db.fundPosition.count({
     where: { status: 'open', reasonFa: { startsWith: BOT_PREFIX } },
   })
@@ -210,12 +220,12 @@ export async function runAutoTrader(): Promise<string> {
     take: 40,
   })
   const candidates = rows
-    .filter((s) => Math.abs(s.score) >= bot.minScore)
+    .filter((s) => Math.abs(s.score) >= effMinScore)
     .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
     .slice(0, CANDIDATES_PER_RUN)
 
   if (!candidates.length) {
-    return `سیگنال تازهٔ بالای امتیاز ${faNum(bot.minScore, 0)} نداریم — ${manageFa}`
+    return `سیگنال تازهٔ بالای امتیاز ${faNum(effMinScore, 0)} نداریم — ${manageFa}`
   }
 
   // دروازهٔ استادی: نقشهٔ بنیادی نمادها (کش ۱۵ دقیقه‌ای — بدون تماس اضافه)
@@ -300,6 +310,7 @@ export async function runAutoTrader(): Promise<string> {
   if (gated > 0) parts.push(`رد استادی: ${faNum(gated, 0)}`)
   parts.push(`ردشده: ${faNum(skipped, 0)}`)
   if (skipFa.length) parts.push(`دلایل: ${skipFa.slice(0, 5).join(' · ')}`)
+  if (lossStreak) parts.push('ترمز ضرر پیاپی فعال — آستانهٔ ورود +۸ سخت‌گیرانه شد')
   parts.push(manageFa)
   return parts.join(' — ')
 }

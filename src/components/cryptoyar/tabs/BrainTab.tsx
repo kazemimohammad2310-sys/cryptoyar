@@ -1,6 +1,6 @@
 'use client'
 
-import { Brain } from 'lucide-react'
+import { Brain, GraduationCap, Lightbulb } from 'lucide-react'
 import { usePolling } from '@/components/cryptoyar/usePolling'
 import { EmptyNote, ErrorNote, FEATURE_FA, MiniBar, SectionTitle, SkeletonBlock, Sparkline, StatCard } from '@/components/cryptoyar/kit'
 import { faDateTime, faNum, faPct } from '@/lib/fa'
@@ -121,7 +121,57 @@ export function BrainTab() {
         ) : null}
       </section>
 
-      {/* evaluated samples */}
+      {/* trader knowledge: curriculum + mined lessons (Brain v3) */}
+      {d?.lessons?.length ? (
+        <section className="space-y-4">
+          <SectionTitle icon={<GraduationCap className="h-4 w-4" />}>دانش‌نامهٔ تریدر حرفه‌ای</SectionTitle>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {d.lessons
+              .filter((l) => l.kind === 'curriculum')
+              .map((l) => (
+                <div key={l.key} className="rounded-xl border bg-card px-4 py-3">
+                  <div className="text-sm font-bold">{l.titleFa}</div>
+                  <div className="mt-1 text-xs leading-5 text-muted-foreground">{l.bodyFa}</div>
+                  <div className="mt-1 text-[11px] text-primary/80">{l.statsFa}</div>
+                </div>
+              ))}
+          </div>
+          <SectionTitle icon={<Lightbulb className="h-4 w-4" />}>درس‌هایی که از بازار آموخت</SectionTitle>
+          {(() => {
+            const mined = d.lessons.filter((l) => l.kind === 'pattern' && l.active)
+            if (!mined.length) {
+              return (
+                <EmptyNote>
+                  هنوز الگویی با شواهد کافی کشف نشده — با ارزیابی نمونه‌های بیشتر، درس‌های تازه همین‌جا ثبت می‌شوند.
+                </EmptyNote>
+              )
+            }
+            return (
+              <div className="space-y-2">
+                {mined.map((l) => (
+                  <div key={l.key} className="rounded-xl border bg-card px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-bold">{l.titleFa}</div>
+                        <div className="mt-1 text-xs leading-5 text-muted-foreground">{l.bodyFa}</div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">{l.statsFa}</div>
+                      </div>
+                      <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold ${l.delta >= 0 ? 'cy-up' : 'cy-down'}`}>
+                        {l.delta > 0 ? '+' : ''}
+                        {faNum(l.delta, 1)} امتیاز
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      <MiniBar pct={l.confidence} ok={l.delta >= 0} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+        </section>
+      ) : null}
+
       <section>
         <SectionTitle>آخرین نمونه‌های ارزیابی‌شده</SectionTitle>
         {brain.loading ? (

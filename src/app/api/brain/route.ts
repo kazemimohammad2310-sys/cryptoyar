@@ -11,7 +11,7 @@ export async function GET() {
     await ensurePragmas()
     await ensureBooted()
 
-    const [total, evaluated, pending, weights, trainedAt, accuracyRaw, historyRaw, trust] = await Promise.all([
+    const [total, evaluated, pending, weights, trainedAt, accuracyRaw, historyRaw, trust, lessons] = await Promise.all([
       db.brainSample.count(),
       db.brainSample.count({ where: { evaluatedAt: { not: null } } }),
       db.brainSample.count({ where: { evaluatedAt: null } }),
@@ -20,6 +20,7 @@ export async function GET() {
       getSetting('brainAccuracy'),
       getSetting('brainHistory'),
       getStrategyTrust(),
+      db.brainLesson.findMany({ orderBy: [{ kind: 'asc' }, { confidence: 'desc' }], take: 40 }),
     ])
 
     const selfTest = await runSelfTest().catch(() => null)
@@ -49,6 +50,17 @@ export async function GET() {
       counts: { total, evaluated, pending, coldStart: total < MIN_SAMPLES_FOR_TRAINING, minForTraining: MIN_SAMPLES_FOR_TRAINING },
       weights: FEATURE_KEYS.map((k: FeatureKey) => ({ key: k, weight: weights[k] })),
       strategyTrust: trust,
+      lessons: lessons.map((l) => ({
+        id: l.id,
+        key: l.key,
+        kind: l.kind,
+        titleFa: l.titleFa,
+        bodyFa: l.bodyFa,
+        statsFa: l.statsFa,
+        confidence: l.confidence,
+        delta: l.delta,
+        active: l.active,
+      })),
       training,
       selfTest,
       history,

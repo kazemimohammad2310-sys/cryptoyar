@@ -5,6 +5,7 @@
 import { db, ensurePragmas } from '@/lib/db'
 import { ensureDefaults } from '@/lib/settings'
 import { jobDefs } from '@/lib/nightshift'
+import { seedTraderKnowledge } from '@/lib/traderKnowledge'
 
 const ORDER = [
   'ticker-refresh',
@@ -39,6 +40,8 @@ async function lastOkAt(job: string): Promise<number> {
 async function main(): Promise<void> {
   await ensurePragmas()
   await ensureDefaults()
+  // کاشت دانش‌نامهٔ تریدر حرفه‌ای (idempotent — روی ابر هیچ route اپ اجرا نمی‌شود)
+  await seedTraderKnowledge().catch(() => undefined)
 
   const defs = jobDefs()
   let ran = 0

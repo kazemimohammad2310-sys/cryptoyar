@@ -16,6 +16,7 @@ import {
   type ScoreResult,
 } from '@/lib/brain'
 import { faNum } from '@/lib/fa'
+import { lessonAdjustment } from '@/lib/lessons'
 
 // ─── Radar: scan universe, emit ranked opportunity cards (§5) ───
 // Correction applied: response includes a calibrated «زیر آستانه» watch list so
@@ -220,10 +221,14 @@ export async function scanRadar(): Promise<RadarResult> {
           if (cand.side === 'long' && score < 0) continue
           if (cand.side === 'short' && score > 0) continue
         }
-        // Brain v2: calibrated score = raw score × strategy trust
-        const calibrated = score * (trust[cand.strategy] ?? 1)
+        // Brain v3: تنظیم امتیاز با درس‌های آموخته (الگوهای شرطی کشف‌شده از نتایج واقعی)
+        const les = await lessonAdjustment(features, cand.side)
+        // Brain v2: calibrated score = raw score × strategy trust + lessons
+        const calibrated = score * (trust[cand.strategy] ?? 1) + les.delta
         const { stop, target } = atrStop(entry, features.atrPct, cand.side)
-        const reasonFa = strategyReasonFa(cand.strategy, cand.side, features, calibrated, contributions)
+        const reasonFa = les.matchedFa.length
+          ? `${strategyReasonFa(cand.strategy, cand.side, features, calibrated, contributions)} — درس مغز: ${les.matchedFa.join('، ')}`
+          : strategyReasonFa(cand.strategy, cand.side, features, calibrated, contributions)
         const card: RadarCandidate = {
           symbol,
           side: cand.side,
