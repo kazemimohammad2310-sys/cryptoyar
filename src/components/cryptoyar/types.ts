@@ -30,6 +30,8 @@ export interface RadarSignal {
   takeProfit: number
   features: Record<string, number>
   reasonFa: string
+  gateStatus?: string | null
+  gateReasonFa?: string | null
   status: string
   createdAt: number
 }
@@ -59,6 +61,21 @@ export interface FundPositionRow {
   openedAt: number
 }
 
+export interface FundClosedRow {
+  id: number
+  symbol: string
+  side: string
+  leverage: number
+  strategy: string
+  strategyFa: string
+  pnlUsdt: number
+  pnlPct: number
+  openedAt: number
+  closedAt: number | null
+  reasonFa: string
+  closeReasonFa: string | null
+}
+
 export interface FundResp {
   stats: {
     equity: number
@@ -86,6 +103,7 @@ export interface FundResp {
   equityNow: number
   equityCurve: { ts: number; v: number }[]
   positions: FundPositionRow[]
+  closed: FundClosedRow[]
   orders: { id: number; kind: string; symbol: string; side: string; qty: number; price: number; reasonFa: string; createdAt: number }[]
 }
 

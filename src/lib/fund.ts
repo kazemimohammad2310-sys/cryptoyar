@@ -3,6 +3,7 @@ import { getRiskConfig, getFuturesConfig } from '@/lib/settings'
 import { loadCandles } from '@/lib/candles'
 import { atr } from '@/lib/indicators'
 import { STRATEGY_FA } from '@/lib/brain'
+import { faNum } from '@/lib/fa'
 import type { FundamentalLevel } from '@/lib/fundamentals'
 
 // ─── Paper Fund (§6/§7) — all risk rules enforced SERVER-SIDE ───
@@ -165,7 +166,9 @@ export async function openPosition(params: OpenParams): Promise<{ positionId: nu
     if (!sig) throw new FundError('سیگنال یافت نشد')
     if (sig.symbol !== params.symbol) throw new FundError('نماد با سیگنال همخوان نیست')
     strategy = sig.strategy
-    reasonFa = sig.reasonFa
+    // دلیل ورود: ربات دلیل ساختاریافتهٔ خودش را می‌فرستد (امتیاز/همگرایی/بنیاد/روند)؛
+    // اگر نیامده باشد (ثبت دستی از رادار)، دلیل کامل سیگنال رادار ثبت می‌شود.
+    if (!reasonFa) reasonFa = sig.reasonFa
     await db.signal.update({ where: { id: signalId }, data: { status: 'registered' } })
   } else {
     // 7.6 radar-only entries: manual opens need an explicit reason
@@ -201,19 +204,27 @@ export async function openPosition(params: OpenParams): Promise<{ positionId: nu
   return { positionId: pos.id, qty, entry, stop, target, leverage, marginUsdt }
 }
 
-/** Close a position, realize PnL, write order + equity point. */
+/** Close a position, realize PnL, write order + equity point.
+ *  دلیل بستن به‌صورت خودکار غنی‌سازی می‌شود: عامل بستن + نتیجهٔ نهایی (٪ و USDT) + مدت نگهداری.
+ *  متن نهایی هم روی خود پوزیشن (closeReasonFa) و هم در دفتر سفارش‌ها ذخیره می‌شود. */
 export async function closePosition(id: number, reasonFa: string, closePrice?: number): Promise<{ pnlUsdt: number; pnlPct: number }> {
   const pos = await db.fundPosition.findUnique({ where: { id } })
   if (!pos || pos.status !== 'open') throw new FundError('پوزیشن باز یافت نشد')
   const price = closePrice ?? (await latestPrice(pos.symbol)) ?? pos.markPrice
   const pnlUsdt = pos.side === 'long' ? (price - pos.entryPrice) * pos.qty : (pos.entryPrice - price) * pos.qty
   const pnlPct = (pnlUsdt / (pos.entryPrice * pos.qty)) * 100
+
+  // غنی‌سازی دلیل: نتیجهٔ نهایی + مدت نگهداری (جملهٔ کامل «چرا بسته شد»)
+  const durH = Math.max(0, (Date.now() - pos.openedAt.getTime()) / 3600_000)
+  const durFa = durH >= 1 ? `${faNum(Math.round(durH), 0)} ساعت` : `${faNum(Math.max(1, Math.round(durH * 60)), 0)} دقیقه`
+  const finalReasonFa = `${reasonFa} — نتیجه: ${pnlUsdt >= 0 ? 'سود' : 'زیان'} ${faNum(Math.abs(pnlPct), 2)}٪ (${faNum(Math.abs(pnlUsdt), 2)} USDT) — مدت نگهداری ${durFa}`
+
   await db.fundPosition.update({
     where: { id },
-    data: { status: 'closed', closedAt: new Date(), closePrice: price, pnlUsdt, pnlPct, markPrice: price },
+    data: { status: 'closed', closedAt: new Date(), closePrice: price, pnlUsdt, pnlPct, markPrice: price, closeReasonFa: finalReasonFa },
   })
   await db.fundOrder.create({
-    data: { kind: 'close', symbol: pos.symbol, side: pos.side, qty: pos.qty, price, reasonFa },
+    data: { kind: 'close', symbol: pos.symbol, side: pos.side, qty: pos.qty, price, reasonFa: finalReasonFa },
   })
   const eq = await currentEquity()
   await db.equityPoint.create({ data: { equityUsdt: eq } })
@@ -245,11 +256,16 @@ export async function markToMarket(): Promise<{ closed: number; details: string[
     const hitSl = p.side === 'long' ? price <= p.stopLoss : price >= p.stopLoss
     const hitTp = p.side === 'long' ? price >= p.takeProfit : price <= p.takeProfit
     if (hitSl) {
-      const r = await closePosition(p.id, 'حد ضرر فعال شد', p.stopLoss)
+      // نوع حد ضرر را صادقانه بگو: اولیهٔ ATR یا محافظت‌شده (سر‌به‌سر/متحرک)
+      const protectedStop = p.side === 'long' ? p.stopLoss >= p.entryPrice : p.stopLoss <= p.entryPrice
+      const cause = protectedStop
+        ? 'حد ضرر محافظت‌شده فعال شد (سر‌به‌سر/متحرک — سود قفل شد و معامله بسته شد)'
+        : 'حد ضرر اولیه فعال شد (ATR — جلوگیری از بزرگ‌تر شدن ضرر)'
+      const r = await closePosition(p.id, cause, p.stopLoss)
       closed++
       details.push(`${p.symbol}: حد ضرر (${r.pnlUsdt.toFixed(2)} USDT)`)
     } else if (hitTp) {
-      const r = await closePosition(p.id, 'هدف سود محقق شد', p.takeProfit)
+      const r = await closePosition(p.id, 'هدف سود محقق شد (نسبت ریسک/سود ۱٫۵ — حد سود به قیمت رسید)', p.takeProfit)
       closed++
       details.push(`${p.symbol}: هدف سود (+${r.pnlUsdt.toFixed(2)} USDT)`)
     }

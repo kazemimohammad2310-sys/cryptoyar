@@ -62,6 +62,15 @@ function confluenceOf(f: SigFeatures, side: 'long' | 'short'): number {
   }, 0)
 }
 
+/** ثبت دلیل «چرا همین الان معامله نشد» روی سیگنال — برای شفافیت کامل در تب رادار */
+async function recordSkip(s: { id: number }, reasonFa: string): Promise<void> {
+  try {
+    await db.signal.update({ where: { id: s.id }, data: { gateStatus: 'skipped', gateReasonFa: reasonFa } })
+  } catch {
+    /* غیرحیاتی */
+  }
+}
+
 /** دروازهٔ استادی: null = عبور | رشتهٔ فارسی = دلیل رد */
 function expertGateFailReason(
   f: SigFeatures,
@@ -256,6 +265,7 @@ export async function runAutoTrader(): Promise<string> {
       if (dup) {
         skipped++
         skipFa.push(`${s.symbol}: پوزیشن باز دارد`)
+        await recordSkip(s, 'برای این نماد پوزیشن باز داریم — ورود همزمان دوم ممنوع')
         continue
       }
       // cooldown after a recent close on the same symbol (loss 6h default, win 1h)
@@ -269,8 +279,10 @@ export async function runAutoTrader(): Promise<string> {
         const cooldownH = wasLoss ? bot.cooldownHours : 1
         const sinceClose = (Date.now() - lastClosed.closedAt.getTime()) / 3600_000
         if (sinceClose < cooldownH) {
+          const cdFa = `دورهٔ خنک‌شدن پس از ${wasLoss ? 'ضرر' : 'سود'} قبلی (${faNum(cooldownH, 0)} ساعت) هنوز تمام نشده`
           skipped++
           skipFa.push(`${s.symbol}: خنک‌شدن پس از ${wasLoss ? 'ضرر' : 'سود'}`)
+          await recordSkip(s, cdFa)
           continue
         }
       }
@@ -279,23 +291,49 @@ export async function runAutoTrader(): Promise<string> {
       const side: 'long' | 'short' = s.side === 'short' ? 'short' : 'long'
       const absScore = Math.abs(s.score)
       const fundRow = fundMap.get(s.symbol) ?? null
+      const f = parseFeatures(s.featuresJson)
       if (fut.expertGate === 'on') {
-        const f = parseFeatures(s.featuresJson)
         const gateFail = expertGateFailReason(f, side, s.strategy, absScore, fundRow)
         if (gateFail) {
           gated++
           skipFa.push(`${s.symbol}: ${gateFail}`)
+          // دلیل رد شدن را روی خود سیگنال ثبت کن تا در تب رادار دیده شود
+          try {
+            await db.signal.update({ where: { id: s.id }, data: { gateStatus: 'rejected', gateReasonFa: gateFail } })
+          } catch {
+            /* ثبت یادداشت گیت حیاتی نیست */
+          }
           continue
+        }
+        try {
+          await db.signal.update({ where: { id: s.id }, data: { gateStatus: 'passed' } })
+        } catch {
+          /* غیرحیاتی */
+        }
+      } else {
+        try {
+          await db.signal.update({ where: { id: s.id }, data: { gateStatus: 'skipped' } })
+        } catch {
+          /* غیرحیاتی */
         }
       }
 
-      const confluence = confluenceOf(parseFeatures(s.featuresJson), side)
+      const confluence = confluenceOf(f, side)
       const levelFa = fundRow ? fundRow.levelFa : 'نامشخص'
+      // جهت‌گیری با روند ۴ساعته — بخشی از «چرا ورود»
+      const mtfFa =
+        typeof f.mtf === 'number' && Number.isFinite(f.mtf)
+          ? f.mtf > 0.15
+            ? 'هم‌جهت با روند ۴ساعته'
+            : f.mtf < -0.15
+              ? 'خلاف روند ۴ساعته (فرصت خلاف‌روند)'
+              : null
+          : null
       const r = await openPosition({
         symbol: s.symbol,
         side,
         signalId: s.id,
-        reasonFa: `${BOT_PREFIX} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، بنیاد ${levelFa}`,
+        reasonFa: `${BOT_PREFIX} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، بنیاد ${levelFa}${mtfFa ? `، ${mtfFa}` : ''}`,
         fundamentalLevel: fundRow?.level ?? null,
       })
       opened++
