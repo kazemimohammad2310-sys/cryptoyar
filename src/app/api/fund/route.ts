@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { db, ensurePragmas } from '@/lib/db'
 import { ensureBooted } from '@/lib/boot'
 import { computeStats, currentEquity, liquidationPrice, roeOf } from '@/lib/fund'
-import { STRATEGY_FA } from '@/lib/brain'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,12 +10,11 @@ export async function GET() {
     await ensurePragmas()
     await ensureBooted()
 
-    const [stats, positions, orders, equity, closed] = await Promise.all([
+    const [stats, positions, orders, equity] = await Promise.all([
       computeStats(),
       db.fundPosition.findMany({ where: { status: 'open' }, orderBy: { openedAt: 'desc' } }),
       db.fundOrder.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
       db.equityPoint.findMany({ orderBy: { ts: 'desc' }, take: 48 }),
-      db.fundPosition.findMany({ where: { status: 'closed' }, orderBy: { closedAt: 'desc' }, take: 12 }),
     ])
 
     return NextResponse.json({
@@ -52,20 +50,6 @@ export async function GET() {
         price: o.price,
         reasonFa: o.reasonFa,
         createdAt: o.createdAt.getTime(),
-      })),
-      closed: closed.map((p) => ({
-        id: p.id,
-        symbol: p.symbol,
-        side: p.side,
-        leverage: p.leverage || 1,
-        strategy: p.strategy,
-        strategyFa: STRATEGY_FA[p.strategy] ?? (p.strategy === 'manual' ? 'دستی' : p.strategy),
-        pnlUsdt: p.pnlUsdt ?? 0,
-        pnlPct: p.pnlPct ?? 0,
-        openedAt: p.openedAt.getTime(),
-        closedAt: p.closedAt ? p.closedAt.getTime() : null,
-        reasonFa: p.reasonFa,
-        closeReasonFa: p.closeReasonFa,
       })),
     })
   } catch (e) {

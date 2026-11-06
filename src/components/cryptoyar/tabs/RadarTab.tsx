@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Radar as RadarIcon, ShieldAlert } from 'lucide-react'
+import { Radar as RadarIcon } from 'lucide-react'
 import { usePolling, postJson } from '@/components/cryptoyar/usePolling'
 import { EmptyNote, ErrorNote, FEATURE_FA, ScoreBadge, SectionTitle, SideChip, SkeletonBlock } from '@/components/cryptoyar/kit'
 import { faNum, faPrice, faTimeAgo } from '@/lib/fa'
@@ -138,16 +138,6 @@ function SignalCard({
       </div>
 
       <p className="text-sm leading-6 text-foreground/90">{s.reasonFa}</p>
-
-      {s.gateStatus === 'rejected' && s.gateReasonFa ? (
-        <p className="flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-600 dark:text-amber-400">
-          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            <span className="font-bold">ربات این سیگنال را معامله نکرد: </span>
-            {s.gateReasonFa} — ثبت دستی آزاد است، اما ریسک آن با شماست.
-          </span>
-        </p>
-      ) : null}
 
       {chips.length ? (
         <div className="flex flex-wrap gap-1.5">

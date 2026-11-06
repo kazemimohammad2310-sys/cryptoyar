@@ -81,7 +81,7 @@ async function main(): Promise<void> {
     currentEquity().catch(() => 0),
     db.equityPoint.findMany({ orderBy: { ts: 'desc' }, take: 48 }),
     db.fundPosition.findMany({ where: { status: 'open' } }),
-    db.fundPosition.findMany({ where: { status: 'closed' }, orderBy: { closedAt: 'desc' }, take: 12 }),
+    db.fundPosition.findMany({ where: { status: 'closed' }, orderBy: { closedAt: 'desc' }, take: 8 }),
     db.signal.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
     db.coin.count(),
     db.candle.count(),
@@ -325,7 +325,6 @@ async function main(): Promise<void> {
         </div>
         <div class="reason">ورود: ${faNum(s.entryPrice, 4)} · حد ضرر: <span class="down">${faNum(s.stopLoss, 4)}</span> · حد سود: <span class="up">${faNum(s.takeProfit, 4)}</span> · استراتژی: ${esc(s.strategy)}</div>
         <div class="reason">${esc(s.reasonFa)}</div>
-        ${s.gateStatus === 'rejected' && s.gateReasonFa ? `<div class="reason" style="color:#f6465d">چرا ربات معامله نکرد؟ دروازهٔ استادی رد کرد: <b>${esc(s.gateReasonFa)}</b> — ثبت دستی آزاد است ولی ریسک با شماست.</div>` : s.gateStatus === 'skipped' && s.gateReasonFa ? `<div class="reason" style="color:#f0b90b">چرا هنوز معامله نشد؟ <b>${esc(s.gateReasonFa)}</b></div>` : s.status === 'registered' || s.gateStatus === 'passed' ? `<div class="reason" style="color:#0ecb81">از دروازهٔ استادی عبور کرد و وارد صندوق شد ✓</div>` : ''}
         <div class="sub">${FA_TIME.format(s.createdAt)}</div>
       </div>`,
           )
@@ -368,7 +367,7 @@ async function main(): Promise<void> {
       <h2>پوزیشن‌های باز فیوچرز</h2>
       ${
         positions.length
-          ? `<div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>اهرم</th><th>مارجین</th><th>ورود</th><th>فعلی</th><th>حد ضرر</th><th>لیکوییدیشن</th><th>حد سود</th><th>ROE</th><th>سود</th><th>دلیل ورود (چرا؟)</th></tr>
+          ? `<div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>اهرم</th><th>مارجین</th><th>ورود</th><th>فعلی</th><th>حد ضرر</th><th>لیکوییدیشن</th><th>حد سود</th><th>ROE</th><th>سود</th></tr>
       ${positions
         .map(
           (p) => {
@@ -376,7 +375,7 @@ async function main(): Promise<void> {
             const margin = p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, lev)
             const roe = roeOf(p)
             const liq = liquidationPrice(p)
-            return `<tr><td>${esc(p.symbol.replace('USDT', ''))}/USDT</td><td>${sideFa(p.side)}</td><td><b class="${lev > 1 ? 'warn' : 'sub'}">×${faNum(lev, lev % 1 === 0 ? 0 : 1)}</b></td><td>${faNum(margin, 2)}</td><td>${faNum(p.entryPrice, 4)}</td><td>${faNum(p.markPrice, 4)}</td><td class="down">${faNum(p.stopLoss, 4)}</td><td class="sub">${lev > 1 ? faNum(liq, 4) : '—'}</td><td class="up">${faNum(p.takeProfit, 4)}</td><td class="${roe >= 0 ? 'up' : 'down'}">${faPct(roe, 1)}</td><td class="${(p.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(p.pnlPct ?? 0, 2)}</td><td class="sub" style="max-width:230px;min-width:150px;font-size:11px;line-height:1.7">${esc(p.reasonFa || '—')}</td></tr>`
+            return `<tr><td>${esc(p.symbol.replace('USDT', ''))}/USDT</td><td>${sideFa(p.side)}</td><td><b class="${lev > 1 ? 'warn' : 'sub'}">×${faNum(lev, lev % 1 === 0 ? 0 : 1)}</b></td><td>${faNum(margin, 2)}</td><td>${faNum(p.entryPrice, 4)}</td><td>${faNum(p.markPrice, 4)}</td><td class="down">${faNum(p.stopLoss, 4)}</td><td class="sub">${lev > 1 ? faNum(liq, 4) : '—'}</td><td class="up">${faNum(p.takeProfit, 4)}</td><td class="${roe >= 0 ? 'up' : 'down'}">${faPct(roe, 1)}</td><td class="${(p.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(p.pnlPct ?? 0, 2)}</td></tr>`
           },
         )
         .join('')}</table></div>`
@@ -387,10 +386,10 @@ async function main(): Promise<void> {
       <h2>معاملات اخیر بسته‌شده</h2>
       ${
         closedPositions.length
-          ? `<div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>سود USDT</th><th>سود ٪</th><th>دلیل بستن (چرا؟)</th><th>زمان بستن</th></tr>
+          ? `<div class="twrap"><table><tr><th>نماد</th><th>سمت</th><th>سود USDT</th><th>سود ٪</th><th>زمان بستن</th></tr>
       ${closedPositions
         .map(
-          (p) => `<tr><td>${esc(p.symbol.replace('USDT', ''))}/USDT</td><td>${sideFa(p.side)}</td><td class="${(p.pnlUsdt ?? 0) >= 0 ? 'up' : 'down'}">${faNum(p.pnlUsdt ?? 0, 2)}</td><td class="${(p.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(p.pnlPct ?? 0, 2)}</td><td class="sub" style="max-width:260px;min-width:170px;font-size:11px;line-height:1.7">${esc(p.closeReasonFa || '—')}</td><td class="sub">${p.closedAt ? FA_TIME.format(p.closedAt) : '—'}</td></tr>`,
+          (p) => `<tr><td>${esc(p.symbol.replace('USDT', ''))}/USDT</td><td>${sideFa(p.side)}</td><td class="${(p.pnlUsdt ?? 0) >= 0 ? 'up' : 'down'}">${faNum(p.pnlUsdt ?? 0, 2)}</td><td class="${(p.pnlPct ?? 0) >= 0 ? 'up' : 'down'}">${faPct(p.pnlPct ?? 0, 2)}</td><td class="sub">${p.closedAt ? FA_TIME.format(p.closedAt) : '—'}</td></tr>`,
         )
         .join('')}</table></div>`
           : '<div class="reason">هنوز معامله‌ای بسته نشده — SL و TP هر پوزیشن باز به‌صورت خودکار پایش می‌شود.</div>'
@@ -729,7 +728,7 @@ self.addEventListener('fetch',function(e){
         unrealized,
         coins,
         candleCount,
-        positions: positions.map((p) => ({ symbol: p.symbol, side: p.side, pnlPct: p.pnlPct, leverage: p.leverage || 1, marginUsdt: p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1), reasonFa: p.reasonFa, closeReasonFa: p.closeReasonFa })),
+        positions: positions.map((p) => ({ symbol: p.symbol, side: p.side, pnlPct: p.pnlPct, leverage: p.leverage || 1, marginUsdt: p.marginUsdt > 0 ? p.marginUsdt : (p.entryPrice * p.qty) / Math.max(1, p.leverage || 1) })),
         signals: signals.map((s) => ({ symbol: s.symbol, side: s.side, score: s.score, strategy: s.strategy, status: s.status })),
         fundamentals: fundSnap
           ? {

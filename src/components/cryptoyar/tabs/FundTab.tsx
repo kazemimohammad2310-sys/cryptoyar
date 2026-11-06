@@ -136,14 +136,7 @@ export function FundTab() {
               <tbody>
                 {fund.data.positions.map((p) => (
                   <tr key={p.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2.5">
-                      <div className="font-bold">{p.symbol}</div>
-                      {p.reasonFa ? (
-                        <div title={p.reasonFa} className="mt-0.5 max-w-[240px] text-[11px] leading-4 text-muted-foreground [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
-                          {p.reasonFa}
-                        </div>
-                      ) : null}
-                    </td>
+                    <td className="px-3 py-2.5 font-bold">{p.symbol}</td>
                     <td className="px-3 py-2.5">
                       <SideChip side={p.side} />
                     </td>
@@ -187,51 +180,6 @@ export function FundTab() {
         </p>
       </section>
 
-      {/* trade history — why opened, why closed */}
-      <section>
-        <SectionTitle>تاریخچهٔ معامله‌ها — چرا باز شد، چرا بسته شد</SectionTitle>
-        {fund.loading ? (
-          <SkeletonBlock className="h-32" />
-        ) : fund.data && fund.data.closed.length > 0 ? (
-          <div className="space-y-2">
-            {fund.data.closed.map((c) => (
-              <div key={c.id} className="rounded-xl border bg-card p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold">{c.symbol}</span>
-                    <SideChip side={c.side} />
-                    {c.leverage > 1 ? (
-                      <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold text-primary">×{faNum(c.leverage, c.leverage % 1 === 0 ? 0 : 1)}</span>
-                    ) : null}
-                    <span className="text-xs text-muted-foreground">{c.strategyFa}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <PnlText usdt={c.pnlUsdt} pct={c.pnlPct} />
-                    <span className="text-[11px] text-muted-foreground" title={c.closedAt ? faDateTime(c.closedAt) : undefined}>
-                      {c.closedAt ? faTimeAgo(c.closedAt) : '—'}
-                    </span>
-                  </div>
-                </div>
-                {c.reasonFa ? (
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    <span className="font-bold text-foreground/70">چرا باز شد؟ </span>
-                    {c.reasonFa}
-                  </p>
-                ) : null}
-                {c.closeReasonFa ? (
-                  <p className="mt-1 text-xs leading-5 text-foreground/85">
-                    <span className="font-bold">چرا بسته شد؟ </span>
-                    {c.closeReasonFa}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyNote>هنوز معامله‌ای بسته نشده است — بعد از اولین خروج، دلیل کامل باز شدن و بستن اینجا نمایش داده می‌شود.</EmptyNote>
-        )}
-      </section>
-
       {/* orders log */}
       <section>
         <SectionTitle>دفتر سفارش‌ها (۵۰ مورد اخیر)</SectionTitle>
@@ -240,22 +188,19 @@ export function FundTab() {
         ) : fund.data && fund.data.orders.length > 0 ? (
           <div className="max-h-96 space-y-2 overflow-y-auto rounded-xl border bg-card p-3">
             {fund.data.orders.map((o) => (
-              <div key={o.id} className="border-b pb-2 text-sm last:border-b-0 last:pb-0">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${o.kind === 'open' ? 'bg-[color:var(--cy-up)]/15 cy-up' : 'bg-secondary text-secondary-foreground'}`}>
-                      {o.kind === 'open' ? 'بازکردن' : 'بستن'}
-                    </span>
-                    <span className="font-bold">{o.symbol}</span>
-                    <SideChip side={o.side} />
-                    <span className="text-xs text-muted-foreground cy-num">حجم {faNum(o.qty, 6)}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="cy-num">{faPrice(o.price)}</span>
-                    <span title={faDateTime(o.createdAt)}>{faTimeAgo(o.createdAt)}</span>
-                  </div>
+              <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-sm last:border-b-0 last:pb-0">
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${o.kind === 'open' ? 'bg-[color:var(--cy-up)]/15 cy-up' : 'bg-secondary text-secondary-foreground'}`}>
+                    {o.kind === 'open' ? 'بازکردن' : 'بستن'}
+                  </span>
+                  <span className="font-bold">{o.symbol}</span>
+                  <SideChip side={o.side} />
+                  <span className="text-xs text-muted-foreground cy-num">حجم {faNum(o.qty, 6)}</span>
                 </div>
-                {o.reasonFa ? <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{o.reasonFa}</p> : null}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="cy-num">{faPrice(o.price)}</span>
+                  <span title={faDateTime(o.createdAt)}>{faTimeAgo(o.createdAt)}</span>
+                </div>
               </div>
             ))}
           </div>

@@ -36,8 +36,6 @@ export async function GET(req: Request) {
       takeProfit: s.takeProfit,
       features: safeParse(s.featuresJson),
       reasonFa: s.reasonFa,
-      gateStatus: s.gateStatus,
-      gateReasonFa: s.gateReasonFa,
       status: s.status,
       createdAt: s.createdAt.getTime(),
     })
