@@ -39,9 +39,31 @@ async function main(): Promise<void> {
     return
   }
   const lastPushAt = Number(snap.lastPushAt ?? 0)
-  const shouldPush = res.dispatched || Date.now() - lastPushAt > 2 * 3600_000
+  // حادثهٔ 2026-11-07: وقتی چرخهٔ تازه فعال شده، هارت‌بیت نفرست — کامیت نگهبان
+  // یک ثانیه بعد از dispatch به مخزن می‌رسد و push رانر را با «fetch first» می‌کُشد
+  // (اجرای 18:13، 18:53 و 21:51 UTC همه همین‌طور مردند). خودِ رانر حدود یک دقیقه
+  // بعد دیتابیس تازه را منتشر می‌کند؛ وضعیت نگهبان هم داخل همان دیتابیس می‌رود.
+  if (res.dispatched) {
+    console.log('انتشار وضعیت: به چرخهٔ تازه واگذار شد (جلوگیری از تصادم با رانر)')
+    return
+  }
+  const shouldPush = Date.now() - lastPushAt > 2 * 3600_000
   if (!shouldPush) {
     console.log('انتشار وضعیت: لازم نبود (تغییری جدید نیست)')
+    return
+  }
+
+  // هرگز دیتابیس خراب را منتشر نکن (حادثهٔ خرابی دیتابیس محلی 2026-11-07)
+  try {
+    const integ = (await db.$queryRawUnsafe<Array<{ integrity_check: string }>>('PRAGMA integrity_check')) as Array<{
+      integrity_check: string
+    }>
+    if (!integ.length || integ[0]?.integrity_check !== 'ok') {
+      console.log('انتشار وضعیت: دیتابیس محلی سالم نیست — انتشار متوقف شد (برای جلوگیری از آلوده‌شدن ابر)')
+      return
+    }
+  } catch {
+    console.log('انتشار وضعیت: بررسی سلامت دیتابیس ناموفق بود — انتشار متوقف شد')
     return
   }
 

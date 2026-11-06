@@ -3,6 +3,8 @@
 // (7 tabs, mobile-first: داشبورد/رادار/ارزها/صندوق/مغز/شیفت‌شب/راهنما) + data.json into ./site (deployed by the workflow).
 
 import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'fs'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { db, ensurePragmas } from '@/lib/db'
 import { getSetting, getBrainWeights, getBotConfig, getFuturesConfig, type FeatureKey } from '@/lib/settings'
 import { currentEquity, liquidationPrice, roeOf } from '@/lib/fund'
@@ -768,6 +770,78 @@ self.addEventListener('fetch',function(e){
   console.log(
     `REPORT DONE — site/index.html (${(html.length / 1024).toFixed(1)}KB) tabs=7, coins=${fundSnap?.rows.length ?? 0}, positions=${positions.length}, signals=${signals.length}, brainEval=${sampleEvaluated}/${sampleTotal}`,
   )
+
+  await commitAndPushDb()
+}
+
+// ─── مقاوم‌سازی کامیت دیتابیس (حادثهٔ 2026-11-07) ───
+// مرحلهٔ YAML «Commit database back to repo» فقط commit+push ساده است؛ اگر هر
+// چیز دیگری (هارت‌بیت نگهبان، کامیت خودکار سندباکس) بین checkout و push به
+// مخزن رسیده باشد، push با «fetch first» رد می‌شود → چرخه مرد و داشبورد منتشر نشد
+// (اجرای 18:13، 18:53 و 21:51 UTC). راه‌حل: کامیت+push همین‌جا با منطق مقاوم
+// انجام می‌شود تا مرحلهٔ YAML بی‌کار شود (چیزی برای اضافه‌کردن نمی‌ماند).
+async function gitCmd(args: string[], timeoutMs = 90_000): Promise<{ ok: boolean; out: string }> {
+  try {
+    const r = await promisify(execFile)('git', args, {
+      timeout: timeoutMs,
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'echo' },
+    })
+    return { ok: true, out: r.stdout.trim() }
+  } catch (err) {
+    const e = err as { message?: string; stderr?: string | Buffer; stdout?: string | Buffer }
+    const errOut = typeof e.stderr === 'string' ? e.stderr : (e.stderr?.toString?.() ?? '')
+    const msg = [e.message ?? '', errOut].filter(Boolean).join(' | ').slice(0, 500)
+    return { ok: false, out: msg }
+  }
+}
+
+async function commitAndPushDb(): Promise<void> {
+  // فقط داخل CI — اجرای محلی گزارش هرگز چیزی کامیت نمی‌کند
+  if (process.env.GITHUB_ACTIONS !== 'true') {
+    console.log('DB COMMIT: خارج از CI — رد شد')
+    return
+  }
+  try {
+    await gitCmd(['config', 'user.name', 'cryptoyar-bot'])
+    await gitCmd(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'])
+    await gitCmd(['add', 'db/custom.db'])
+    if ((await gitCmd(['diff', '--cached', '--quiet'])).ok) {
+      console.log('DB COMMIT: تغییر دیتابیسی برای ثبت نیست')
+      return
+    }
+    // نسخهٔ پشتیبان باینری از دیتابیس تازهٔ این چرخه (برای بازیابی در تلاش مجدد)
+    copyFileSync('db/custom.db', '/tmp/mycycle.db')
+    const stamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+    const cm = await gitCmd(['commit', '-m', `data: cycle ${stamp}`])
+    if (!cm.ok) {
+      console.log(`DB COMMIT: کامیت ناموفق — ${cm.out}`)
+      return
+    }
+    let push = await gitCmd(['push', 'origin', 'main'], 120_000)
+    if (!push.ok && /fetch first|non-fast-forward|rejected/i.test(push.out)) {
+      // مخزن جلوتر رفته (هارت‌بیت نگهبان یا کامیت خارجی) → بازیابی مقاوم:
+      // به نوک مخزن برو، فقط دیتابیسِ تازهٔ خودمان را برگردان و دوباره push کن
+      console.log('DB COMMIT: push رد شد — همگام‌سازی با نوک مخزن و تلاش مجدد…')
+      const fe = await gitCmd(['fetch', 'origin', 'main'], 120_000)
+      const rs = fe.ok ? await gitCmd(['reset', '--hard', 'origin/main'], 60_000) : { ok: false, out: 'fetch failed' }
+      if (rs.ok) {
+        copyFileSync('/tmp/mycycle.db', 'db/custom.db')
+        await gitCmd(['add', 'db/custom.db'])
+        const cm2 = await gitCmd(['commit', '-m', `data: cycle ${stamp} (retry on fresh tip)`])
+        if (cm2.ok) push = await gitCmd(['push', 'origin', 'main'], 120_000)
+      }
+      if (!push.ok) console.log(`DB COMMIT: تلاش مجدد ناموفق — ${push.out.slice(0, 200)}`)
+    }
+    console.log(
+      push.ok
+        ? `DB COMMIT: انتشار موفق ✓ ${stamp}`
+        : 'DB COMMIT: push نهایی ناموفق — داده در چرخهٔ بعد منتشر می‌شود',
+    )
+  } catch (e) {
+    // هرگز شکست کامیت نباید چرخه و انتشار داشبورد را بکُشد
+    console.log(`DB COMMIT: خطای غیرمنتظره — ${String(e).slice(0, 200)}`)
+  }
 }
 
 void main().catch((e) => {
