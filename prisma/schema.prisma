@@ -94,6 +94,8 @@ model Signal {
   featuresJson String
   reasonFa     String
   status       String   @default("open") // open | registered | expired
+  gateStatus   String? // passed | rejected | skipped — نتیجهٔ دروازهٔ استادی برای این سیگنال
+  gateReasonFa String? // دلیل فارسی: چرا وارد شد / رد شد / هنوز اجرا نشد
   createdAt    DateTime @default(now())
 
   @@index([createdAt])
@@ -119,6 +121,7 @@ model FundPosition {
   closePrice     Float?
   pnlUsdt        Float?
   pnlPct         Float?
+  closeReasonFa  String? // دلیل فارسی بستن پوزیشن (حد ضرر/هدف سود/تریلینگ/خروج زمانی/لیکوییدیشن)
 
   @@index([status])
 }
