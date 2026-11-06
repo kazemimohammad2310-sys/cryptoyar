@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { getSetting, getBrainWeights, getStrategyTrust } from '@/lib/settings'
+import { getSetting, getBrainWeights, getStrategyTrust, getBotConfig } from '@/lib/settings'
 import { assertUniverse } from '@/lib/universe'
 import { loadCandles, type Interval } from '@/lib/candles'
 import { getFundingRate, getOpenInterest, type CandleRow } from '@/lib/fetchers/binance'
@@ -260,6 +260,13 @@ export async function persistRadarResult(result: RadarResult): Promise<number> {
   const cutoff = new Date(Date.now() - 3 * 3600_000)
 
   async function persistBucket(cards: RadarCandidate[], status: 'open' | 'watch'): Promise<void> {
+    // آستانهٔ ورود ربات را یک‌بار بخوان تا دلیل «چرا ربات وارد نمی‌شود» از لحظهٔ ساخت سیگنال صادقانه ثبت شود
+    let botMin = 65
+    try {
+      botMin = (await getBotConfig()).minScore
+    } catch {
+      /* مقدار پیش‌فرض */
+    }
     for (const s of cards) {
       const dup = await db.signal.findFirst({
         where: { symbol: s.symbol, strategy: s.strategy, status, createdAt: { gte: cutoff } },
@@ -291,6 +298,17 @@ export async function persistRadarResult(result: RadarResult): Promise<number> {
             atrPct: s.features.atrPct,
           }),
           reasonFa: s.reasonFa,
+          // شفافیت کامل: دلیل «چرا ربات وارد نمی‌شود» از لحظهٔ ساخت روی سیگنال ثبت می‌شود؛
+          // دروازهٔ استادی بعداً برای کاندیدهای واجد شرایط آن را با passed/rejected به‌روز می‌کند.
+          ...(status === 'watch' || Math.abs(s.score) < botMin
+            ? {
+                gateStatus: 'skipped',
+                gateReasonFa:
+                  status === 'watch'
+                    ? `امتیاز ${faNum(Math.abs(Math.round(s.score)), 0)} زیر آستانهٔ ورود ربات (${faNum(Math.max(botMin, 60), 0)}) — فقط برای پایش در رادار`
+                    : `امتیاز ${faNum(Math.abs(Math.round(s.score)), 0)} از حداقل ورود ربات (${faNum(botMin, 0)}) کمتر است — ربات وارد نشد؛ ثبت دستی آزاد است`,
+              }
+            : {}),
         },
       })
       // brain samples only for actionable signals (score ≥ 60)

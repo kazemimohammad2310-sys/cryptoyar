@@ -233,6 +233,26 @@ export async function runAutoTrader(): Promise<string> {
     .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
     .slice(0, CANDIDATES_PER_RUN)
 
+  // شفافیت: سیگنال‌های «open» که به‌خاطر آستانهٔ ورود (یا آستانهٔ موقت خنک‌شدن) بررسی نشدند —
+  // دلیل «چرا ربات وارد نشد» روی خودشان ثبت می‌شود (فقط اگر هنوز قضاوتی ندارند).
+  const candIds = new Set(candidates.map((s) => s.id))
+  for (const s of rows) {
+    if (candIds.has(s.id) || s.gateStatus) continue
+    try {
+      await db.signal.update({
+        where: { id: s.id },
+        data: {
+          gateStatus: 'skipped',
+          gateReasonFa: lossStreak
+            ? `امتیاز ${faNum(Math.abs(Math.round(s.score)), 0)} از آستانهٔ موقت ${faNum(effMinScore, 0)} (خنک‌شدن پس از ۳ ضرر پیاپی) کمتر است — ربات وارد نشد`
+            : `امتیاز ${faNum(Math.abs(Math.round(s.score)), 0)} از حداقل ورود ربات (${faNum(bot.minScore, 0)}) کمتر است — ربات وارد نشد؛ ثبت دستی آزاد است`,
+        },
+      })
+    } catch {
+      /* غیرحیاتی */
+    }
+  }
+
   if (!candidates.length) {
     return `سیگنال تازهٔ بالای امتیاز ${faNum(effMinScore, 0)} نداریم — ${manageFa}`
   }
