@@ -122,7 +122,7 @@ async function main(): Promise<void> {
       ? 'در انتظار اولین پایش نگهبان'
       : cycleAgeMin <= 2
         ? 'همین حالا ✓'
-        : `${faNum(cycleAgeMin, 0)} دقیقه پیش${(cloudWatch?.stale || cycleAgeMin > 40) ? ' <b class="warn">— کندتر از حد معمول، نگهبان در حال رسیدگی</b>' : ''}`
+        : `${faNum(cycleAgeMin, 0)} دقیقه پیش${(cloudWatch?.stale || cycleAgeMin > 15) ? ' <b class="warn">— کندتر از حد معمول، نگهبان در حال رسیدگی</b>' : ''}`
 
   const health = healthRaw ? (JSON.parse(healthRaw) as Record<string, boolean>) : null
 
@@ -367,8 +367,27 @@ async function main(): Promise<void> {
   const tabRadar = `${pumpMeter}${signals.length
     ? `<div class="card">
         ${signals
-          .map(
-            (s) => `<div style="padding:9px 0;border-bottom:1px solid #1e242c">
+          .map((s) => {
+            // یکپارچه‌سازی پامپ-پک در کارت سیگنال: نشان‌های CVD / موج حجم / رژیم OI (وقتی داده موجود باشد)
+            let fx: { cvd?: number; volSurge?: number; oiRegime?: number } = {}
+            try {
+              fx = JSON.parse(s.featuresJson ?? '{}') as typeof fx
+            } catch {
+              /* سیگنال قدیمی — بدون نشان پامپ */
+            }
+            const pills: string[] = []
+            if (typeof fx.cvd === 'number')
+              pills.push(
+                `<span class="pill ${fx.cvd > 0.15 ? '' : fx.cvd < -0.15 ? '' : 'sub'}" style="${fx.cvd > 0.15 ? 'color:#0ecb81' : fx.cvd < -0.15 ? 'color:#f6465d' : ''}">CVD ${faNum(fx.cvd, 2)}</span>`,
+              )
+            if (typeof fx.volSurge === 'number')
+              pills.push(`<span class="pill ${fx.volSurge > 0 ? '' : 'sub'}" style="${fx.volSurge > 0 ? 'color:#f0b90b' : ''}">موج حجم ${faNum(fx.volSurge, 2)}</span>`)
+            if (typeof fx.oiRegime === 'number' && Math.abs(fx.oiRegime) > 0.15)
+              pills.push(
+                `<span class="pill">${fx.oiRegime > 0 ? 'پول نو به فیوچرز' : 'OI شکننده'} ${faNum(fx.oiRegime, 2)}</span>`,
+              )
+            const pumpPillsHtml = pills.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin:4px 0">${pills.join('')}</div>` : ''
+            return `<div style="padding:9px 0;border-bottom:1px solid #1e242c">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
           <b>${esc(s.symbol.replace('USDT', ''))}/USDT — ${sideFa(s.side)}</b>
           <span style="display:flex;gap:5px;align-items:center">
@@ -380,15 +399,16 @@ async function main(): Promise<void> {
           <span class="bar" style="flex:1"><i style="width:${Math.max(3, Math.min(100, s.score))}%"></i></span>
           <b style="width:40px;text-align:left;color:#f0b90b">${faNum(s.score, 0)}</b>
         </div>
-        <div class="reason">ورود: ${faNum(s.entryPrice, 4)} · حد ضرر: <span class="down">${faNum(s.stopLoss, 4)}</span> · حد سود: <span class="up">${faNum(s.takeProfit, 4)}</span> · استراتژی: ${esc(s.strategy)}</div>
+        <div class="reason">ورود: ${faNum(s.entryPrice, 4)} · حد ضرر: <span class="down">${faNum(s.stopLoss, 4)}</span> · حد سود: <span class="up">${faNum(s.takeProfit, 4)}</span> · استراتژی: ${esc(STRATEGY_FA_LOCAL[s.strategy] ?? s.strategy)}</div>
+        ${pumpPillsHtml}
         <div class="reason">${esc(s.reasonFa)}</div>
         ${s.gateStatus === 'rejected' && s.gateReasonFa ? `<div class="reason" style="color:#f6465d">چرا ربات معامله نکرد؟ دروازهٔ استادی رد کرد: <b>${esc(s.gateReasonFa)}</b> — ثبت دستی آزاد است ولی ریسک با شماست.</div>` : s.gateStatus === 'skipped' && s.gateReasonFa ? `<div class="reason" style="color:#f0b90b">چرا هنوز معامله نشد؟ <b>${esc(s.gateReasonFa)}</b></div>` : s.status === 'registered' || s.gateStatus === 'passed' ? `<div class="reason" style="color:#0ecb81">از دروازهٔ استادی عبور کرد و وارد صندوق شد ✓</div>` : ''}
         <div class="sub">${FA_TIME.format(s.createdAt)}</div>
-      </div>`,
-          )
+      </div>`
+          })
           .join('')}
       </div>`
-    : '<div class="card"><div class="reason">هنوز سیگنالی ثبت نشده — رادار هر ۱۵ دقیقه بازار را اسکن می‌کند.</div></div>'}`
+    : '<div class="card"><div class="reason">هنوز سیگنالی ثبت نشده — رادار هر ۵ دقیقه بازار را اسکن می‌کند.</div></div>'}`
 
   const tabFund = `
     <div class="kpis">
@@ -437,7 +457,7 @@ async function main(): Promise<void> {
           },
         )
         .join('')}</table></div>`
-          : '<div class="reason">پوزیشن بازی وجود ندارد — رادار هر ۱۵ دقیقه دنبال فرصت است.</div>'
+          : '<div class="reason">پوزیشن بازی وجود ندارد — رادار هر ۵ دقیقه دنبال فرصت است.</div>'
       }
     </div>
     <div class="card">
@@ -535,7 +555,7 @@ async function main(): Promise<void> {
   const tabNightshift = `
     <div class="card">
       <h2>موتور زمان‌بندی (بدون نیاز به کامپیوتر روشن)</h2>
-      <div class="reason">این وظایف روی سرور رایگان GitHub Actions هر ۱۵ دقیقه یک‌جا اجرا می‌شوند؛ حتی وقتی گوشی و کامپیوتر شما خاموش است.</div>
+      <div class="reason">این وظایف روی سرور رایگان GitHub Actions هر ۵ دقیقه یک‌جا اجرا می‌شوند؛ حتی وقتی گوشی و کامپیوتر شما خاموش است.</div>
     </div>
     <div class="card">
       <h2>وظایف و فاصلهٔ اجرا</h2>
@@ -571,7 +591,7 @@ async function main(): Promise<void> {
       <div class="twrap"><table>
         <tr><td>حالت معاملات</td><td class="up">شبیه‌سازی (paper) — پول واقعی درگیر نیست</td></tr>
         <tr><td>افق ارزیابی</td><td>۲۴ و ۷۲ ساعت</td></tr>
-        <tr><td>به‌روزرسانی داده</td><td>هر ۱۵ دقیقه توسط GitHub Actions</td></tr>
+        <tr><td>به‌روزرسانی داده</td><td>هر ۵ دقیقه توسط GitHub Actions</td></tr>
         <tr><td>عملیات مدیریتی (ثبت صندوق)</td><td>فقط از داشبورد کامل داخل پنل چت</td></tr>
       </table></div>
     </div>
