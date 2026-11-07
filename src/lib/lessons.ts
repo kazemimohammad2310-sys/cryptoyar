@@ -129,7 +129,7 @@ export const LESSON_PATTERNS: LessonPattern[] = [
 const PATTERN_BY_KEY = new Map(LESSON_PATTERNS.map((p) => [p.key, p]))
 
 const MINE_TAKE = 400
-const MIN_N = 20 // حداقل نمونه برای اعتبار یک درس
+const MIN_N = 15 // Restart v5: 20→15 — درس‌ها با نمونهٔ کمتر فعال می‌شوند (یادگیری سریع‌تر)
 const MIN_GAP_PP = 8 // حداقل فاصله از میانگین (واحد درصدی)
 const MAX_DELTA = 8
 

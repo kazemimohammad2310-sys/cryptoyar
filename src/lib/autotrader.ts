@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { getBotConfig, getRiskConfig, getFuturesConfig } from '@/lib/settings'
+import { getBotConfig, getRiskConfig, getFuturesConfig, getStrategyTrust } from '@/lib/settings'
 import { openPosition, closePosition, latestPrice, isCircuitBreakerTripped } from '@/lib/fund'
 import { computeFundamentals, type FundamentalRow } from '@/lib/fundamentals'
 import { STRATEGY_FA } from '@/lib/brain'
@@ -19,6 +19,9 @@ import { faNum } from '@/lib/fa'
 //   ۵) MTF تایم‌فریم ۴ساعته کاملاً مخالف مومنتوم‌ها → ممنوع
 //   ۶) گیت پامپ (Brain v4): شکست مومنتوم فقط با تأیید حجم + خرید تهاجمی (CVD) وارد می‌شود —
 //      و پامپ تأییدشده تریلینگ سریع‌تری دارد تا سود قبل از فروپاشی قفل شود
+//   ۷) سقف هم‌جهت (Restart v5): حداکثر ۲ پوزیشن همزمان در یک جهت — هر ۳ خرید با هم قرمز نشود
+//   ۸) قطع‌کن مدار استراتژی (Restart v5): ۳ ضرر پیاپی یک استراتژی → توقف ۲۴ ساعتهٔ ورود آن
+//   ۹) آستانهٔ اعتماد مغز (Restart v5): اعتماد کم مغز به یک استراتژی → آستانهٔ ورود بالاتر
 //   + شمارش همگرایی ۹ فاکتور تکنیکال برای ثبت در دلیل معامله و اهرم متناسب با بنیاد
 
 export const BOT_PREFIX = 'ربات خودکار'
@@ -44,6 +47,16 @@ const MB_MIN_VOLZ = 1.5 // شکست مومنتوم باید حجم ≥ ۱٫۵ ا
 const PUMP_TRAIL_AT_PCT = 1.0 // پامپ تأییدشده: تریلینگ از ‎+۱٪ شروع می‌شود (به‌جای ‎+۱٫۶٪)
 const PUMP_TRAIL_GAP_PCT = 0.8 // ...و فاصلهٔ تریل ۰٫۸٪ است (به‌جای ۱٫۲٪) — سود زودتر قفل می‌شود
 const PUMP_CVD_EDGE = 0.15 // آستانهٔ خرید تهاجمی هم‌جهت برای تشخیص پامپ واقعی
+
+// Restart v5 — سه دروازهٔ جدید ربات هوشمند
+export const MAX_SAME_SIDE = 2 // حداکثر ۲ پوزیشن باز در یک جهت (خرید یا فروش)
+export const STRAT_LOSS_STREAK = 3 // ۳ ضرر پیاپی یک استراتژی → توقف موقت
+export const STRAT_COOLDOWN_H = 24 // مدت توقف موقت استراتژی بد (ساعت)
+export const LOW_TRUST_MAX = 0.85 // اعتماد مغز کمتر از این → آستانهٔ ورود سخت‌تر
+export const TRUSTED_MIN = 1.1 // اعتماد مغز بیشتر از این → آستانهٔ ورود کمی آسان‌تر
+export const LOW_TRUST_EXTRA_SCORE = 5 // جریمهٔ امتیاز برای استراتژی کم‌اعتماد
+export const TRUSTED_DISCOUNT = 2 // تخفیف امتیاز برای استراتژی پراعتماد
+export const TRUST_SCORE_FLOOR = 60 // آستانهٔ ورود هرگز زیر این نمی‌رود
 
 const DIRECTIONAL_FEATURES = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf'] as const
 
@@ -78,6 +91,52 @@ export function pumpGateFailReason(f: SigFeatures): string | null {
   if (typeof cvd !== 'number' || !Number.isFinite(cvd)) return 'دادهٔ خرید تهاجمی (CVD) در دسترس نیست — شکست تأیید نشد'
   if (cvd <= 0) return 'خرید تهاجمی تأیید نکرد (CVD منفی) — پامپ مشکوک به فیک'
   return null
+}
+
+/**
+ * Restart v5 — سقف هم‌جهت: اگر در این جهت قبلاً ‎MAX_SAME_SIDE پوزیشن باز داریم، ورود جدید ممنوع.
+ * درس واقعی صندوق قبلی: ۳ خرید همزمان با هم قرمز شدند چون همه به یک جهت شرط بسته بودند.
+ */
+export function sameSideBlock(side: 'long' | 'short', openBySide: Record<string, number>): string | null {
+  const cnt = openBySide[side] ?? 0
+  if (cnt >= MAX_SAME_SIDE) {
+    return `سقف معاملات هم‌جهت (${faNum(MAX_SAME_SIDE, 0)} پوزیشن ${side === 'long' ? 'خرید' : 'فروش'}) پر است — تنوع ریسک`
+  }
+  return null
+}
+
+/**
+ * Restart v5 — قطع‌کن مدار استراتژی: اگر ۳ معاملهٔ آخر یک استراتژی ضرر بوده و آخرینِ آن
+ * کمتر از ۲۴ ساعت پیش بسته شده، ورود جدیدِ همان استراتژی موقتاً ممنوع است.
+ */
+export function strategyCooldownBlock(
+  lastCloses: { pnlUsdt: number | null; closedAt: Date | null }[],
+  now = Date.now(),
+): string | null {
+  if (lastCloses.length < STRAT_LOSS_STREAK) return null
+  const allLoss = lastCloses.slice(0, STRAT_LOSS_STREAK).every((c) => (c.pnlUsdt ?? 0) <= 0)
+  if (!allLoss) return null
+  const last = lastCloses[0]?.closedAt
+  if (!last) return null
+  const sinceH = (now - last.getTime()) / 3600_000
+  if (sinceH >= STRAT_COOLDOWN_H) return null
+  return `توقف موقت استراتژی: ${faNum(STRAT_LOSS_STREAK, 0)} ضرر پیاپی — تا ${faNum(Math.ceil(STRAT_COOLDOWN_H - sinceH), 0)} ساعت دیگر`
+}
+
+/**
+ * Restart v5 — آستانهٔ اعتماد مغز: اعتماد هر استراتژی (×۰٫۷۵ تا ×۱٫۲) روی آستانهٔ ورود اثر می‌کند:
+ * اعتماد کم → ‎+۵ سخت‌گیرانه‌تر | اعتماد بالا → ‎−۲ آسان‌تر (ولی هرگز زیر ‎۶۰).
+ */
+export function trustAdjustedMinScore(baseMinScore: number, trust: number | undefined): { min: number; fa: string } {
+  const tr = typeof trust === 'number' && Number.isFinite(trust) ? trust : 1
+  if (tr < LOW_TRUST_MAX) {
+    return { min: baseMinScore + LOW_TRUST_EXTRA_SCORE, fa: `اعتماد مغز پایین (×${faNum(tr, 2)}) — آستانهٔ ورود +${faNum(LOW_TRUST_EXTRA_SCORE, 0)}` }
+  }
+  if (tr >= TRUSTED_MIN) {
+    const min = Math.max(TRUST_SCORE_FLOOR, baseMinScore - TRUSTED_DISCOUNT)
+    return { min, fa: `اعتماد مغز بالا (×${faNum(tr, 2)}) — آستانهٔ ورود −${faNum(TRUSTED_DISCOUNT, 0)}` }
+  }
+  return { min: baseMinScore, fa: `اعتماد مغز خنثی (×${faNum(tr, 2)})` }
 }
 
 /** چند فاکتور تکنیکال با جهت معامله همسو هستند؟ (۰ تا ۹) */
@@ -266,6 +325,13 @@ export async function runAutoTrader(): Promise<string> {
   const lossStreak = lastBotCloses.length === 3 && lastBotCloses.every((p) => (p.pnlUsdt ?? 0) <= 0)
   const effMinScore = lossStreak ? bot.minScore + 8 : bot.minScore
 
+  // Restart v5: نقشهٔ پوزیشن‌های باز به تفکیک جهت + اعتماد مغز به هر استراتژی
+  const openBySide: Record<string, number> = {}
+  for (const g of await db.fundPosition.groupBy({ by: ['side'], where: { status: 'open' }, _count: { _all: true } })) {
+    openBySide[g.side] = g._count._all
+  }
+  const trust = await getStrategyTrust()
+
   const botOpen = await db.fundPosition.count({
     where: { status: 'open', reasonFa: { startsWith: BOT_PREFIX } },
   })
@@ -342,6 +408,41 @@ export async function runAutoTrader(): Promise<string> {
         await recordSkip(s, 'برای این نماد پوزیشن باز داریم — ورود همزمان دوم ممنوع')
         continue
       }
+
+      const side: 'long' | 'short' = s.side === 'short' ? 'short' : 'long'
+      const absScore = Math.abs(s.score)
+      const fundRow = fundMap.get(s.symbol) ?? null
+      const f = parseFeatures(s.featuresJson)
+      // ─── Restart v5 — دروازهٔ ۱: سقف هم‌جهت ───
+      const sameFail = sameSideBlock(side, openBySide)
+      if (sameFail) {
+        skipped++
+        skipFa.push(`${s.symbol}: ${sameFail}`)
+        await recordSkip(s, `${sameFail} — ربات وارد نشد`)
+        continue
+      }
+      // ─── Restart v5 — دروازهٔ ۲: قطع‌کن مدار استراتژی بد ───
+      const stratCloses = await db.fundPosition.findMany({
+        where: { status: 'closed', strategy: s.strategy },
+        orderBy: { closedAt: 'desc' },
+        take: STRAT_LOSS_STREAK,
+        select: { pnlUsdt: true, closedAt: true },
+      })
+      const stratFail = strategyCooldownBlock(stratCloses)
+      if (stratFail) {
+        gated++
+        skipFa.push(`${s.symbol}: ${stratFail}`)
+        await recordSkip(s, `${stratFail} — درس مغز: استراتژی در رژیم فعلی بازار جواب نمی‌دهد`)
+        continue
+      }
+      // ─── Restart v5 — دروازهٔ ۳: آستانهٔ اعتماد مغز ───
+      const trustAdj = trustAdjustedMinScore(effMinScore, trust[s.strategy])
+      if (absScore < trustAdj.min) {
+        gated++
+        skipFa.push(`${s.symbol}: امتیاز زیر آستانهٔ اعتماد`)
+        await recordSkip(s, `امتیاز ${faNum(Math.abs(Math.round(s.score)), 0)} از آستانهٔ ${faNum(trustAdj.min, 0)} کمتر است — ${trustAdj.fa}`)
+        continue
+      }
       // cooldown after a recent close on the same symbol (loss 6h default, win 1h)
       const lastClosed = await db.fundPosition.findFirst({
         where: { symbol: s.symbol, status: 'closed' },
@@ -360,11 +461,6 @@ export async function runAutoTrader(): Promise<string> {
           continue
         }
       }
-
-      const side: 'long' | 'short' = s.side === 'short' ? 'short' : 'long'
-      const absScore = Math.abs(s.score)
-      const fundRow = fundMap.get(s.symbol) ?? null
-      const f = parseFeatures(s.featuresJson)
       // ─── گیت پامپ (Brain v4): مستقل از دروازهٔ استادی — شکست مومنتوم فقط با تأیید حجم + CVD ───
       if (s.strategy === 'momentum_breakout') {
         const pumpFail = pumpGateFailReason(f)

@@ -35,10 +35,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   globalMetrics: '',
   signalThreshold: '60',
   watchThreshold: '40',
-  // auto-trader bot (paper)
+  // auto-trader bot (paper) — Restart v5: آستانهٔ ۷۰ + سقف ۴ پوزیشن برای سرمایهٔ ۱۰۰۰ دلاری
   botEnabled: 'on',
-  botMinScore: '65',
-  botMaxOpen: '6',
+  botMinScore: '70',
+  botMaxOpen: '4',
   botCooldownHours: '6',
   // futures (paper) — اهرم متناسب و قابل تنظیم (الان: ثابت ×۲۰ به درخواست کاربر)
   futuresLeverageMode: 'fixed', // auto = اهرم متناسب با ریسک/بنیاد | fixed = ثابت

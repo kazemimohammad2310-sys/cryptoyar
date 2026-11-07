@@ -14,7 +14,8 @@ import { mineLessons } from '@/lib/lessons'
 // votes with adaptive step sizes, (d) per-strategy trust multipliers learned
 // from real outcomes, (e) historical backfill warm-start (see backfill.ts).
 
-export const MIN_SAMPLES_FOR_TRAINING = 50
+// Restart v5: 50→35 — مغز زودتر شروع به یادگیری می‌کند (همراه با هموارسازی Laplace همچنان امن است)
+export const MIN_SAMPLES_FOR_TRAINING = 35
 export const SCORE_THRESHOLD = 60
 export const WATCH_THRESHOLD = 40
 
