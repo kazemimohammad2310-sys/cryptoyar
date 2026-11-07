@@ -367,7 +367,7 @@ export function jobDefs(): JobDef[] {
     { name: 'self-heal', fa: 'خودترمیمی', intervalMs: 10 * 60_000, run: jobSelfHeal },
     { name: 'self-optimize', fa: 'خودبهینه‌سازی', intervalMs: 60 * 60_000, run: jobSelfOptimize },
     { name: 'self-update', fa: 'خودبروزرسانی', intervalMs: 6 * 60 * 60_000, run: jobSelfUpdate },
-    { name: 'brain-train', fa: 'آموزش مغز', intervalMs: 60 * 60_000, run: jobBrainTrain },
+    { name: 'brain-train', fa: 'آموزش مغز', intervalMs: 30 * 60_000, run: jobBrainTrain }, // Brain v4: هر ۳۰ دقیقه
     { name: 'equity-snapshot', fa: 'نمودار سرمایه', intervalMs: 60 * 60_000, run: jobEquitySnapshot },
     { name: 'health', fa: 'پایش سلامت', intervalMs: 5 * 60_000, run: jobHealth },
     dailyJob('self-test', '04:00', 'selftestLastDate', jobSelfTest),

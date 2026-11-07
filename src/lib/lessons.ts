@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import type { PrismaPromise } from '@prisma/client'
 import { faNum } from '@/lib/fa'
 
 // ─── موتور درس‌های آموخته (lessons) ───
@@ -14,6 +15,7 @@ export interface LessonFeats {
   oi?: number
   stretch?: number
   atrPct?: number
+  hourUtc?: number // ساعت UTC لحظهٔ ثبت نمونه (برای درس‌های زمانی)
 }
 
 export interface LessonPattern {
@@ -55,6 +57,38 @@ export const LESSON_PATTERNS: LessonPattern[] = [
     titleFa: 'خرید وقتی قیمت خیلی از میانگین فاصله گرفته',
     test: (f) => (f.stretch ?? 0) >= 0.35,
   },
+  // ─── درس‌های زمانی (Brain v4): سشن‌های کم‌نقدینگی و پرنقدینگی ───
+  {
+    key: 'hour_night',
+    side: 'any',
+    titleFa: 'معامله در سکوت شب (۰۰ تا ۰۶ UTC)',
+    test: (f) => (f.hourUtc ?? 12) < 6,
+  },
+  {
+    key: 'hour_active',
+    side: 'any',
+    titleFa: 'معامله در سشن پرتحرک (۱۲ تا ۲۰ UTC)',
+    test: (f) => (f.hourUtc ?? 0) >= 12 && (f.hourUtc ?? 0) < 20,
+  },
+  // ─── درس‌های رژیم نوسان (بازارهای متفاوت، قواعد متفاوت) ───
+  {
+    key: 'regime_calm',
+    side: 'any',
+    titleFa: 'رژیم آرام بازار (ATR روزانه ۰٫۶ تا ۱٫۵٪)',
+    test: (f) => {
+      const a = f.atrPct ?? 2
+      return a >= 0.6 && a < 1.5
+    },
+  },
+  {
+    key: 'regime_hot',
+    side: 'any',
+    titleFa: 'رژیم داغ بازار (ATR روزانه ۳٫۵ تا ۶٪)',
+    test: (f) => {
+      const a = f.atrPct ?? 0
+      return a >= 3.5 && a <= 6
+    },
+  },
   { key: 'side_long_global', side: 'long', titleFa: 'معاملات خرید (لانگ) در وضعیت فعلی بازار', test: () => true },
   { key: 'side_short_global', side: 'short', titleFa: 'معاملات فروش (شورت) در وضعیت فعلی بازار', test: () => true },
 ]
@@ -71,6 +105,7 @@ interface EvalRow {
   featuresJson: string
   ftPnlPct: number | null
   pnlPct: number | null
+  createdAt: Date
 }
 
 function pnlOf(r: EvalRow): number {
@@ -81,7 +116,7 @@ function pnlOf(r: EvalRow): number {
 export async function mineLessons(): Promise<string[]> {
   const rows = await db.brainSample.findMany({
     where: { evaluatedAt: { not: null } },
-    select: { side: true, featuresJson: true, ftPnlPct: true, pnlPct: true },
+    select: { side: true, featuresJson: true, ftPnlPct: true, pnlPct: true, createdAt: true },
     orderBy: { evaluatedAt: 'desc' },
     take: MINE_TAKE,
   })
@@ -95,12 +130,15 @@ export async function mineLessons(): Promise<string[]> {
     } catch {
       continue
     }
+    f.hourUtc = r.createdAt.getUTCHours()
     parsed.push({ side: r.side === 'short' ? 'short' : 'long', feats: f, win: pnlOf(r) > 0 })
   }
   if (parsed.length < MIN_N) return []
 
   const overall = parsed.filter((p) => p.win).length / parsed.length
   const changed: string[] = []
+  // نوشتن‌های لازم در یک تراکنش — چرخِ دیتابیس چند برابر سبک‌تر می‌شود
+  const writes: PrismaPromise<unknown>[] = []
 
   for (const p of LESSON_PATTERNS) {
     const match = parsed.filter((x) => (p.side === 'any' || x.side === p.side) && safeTest(p, x.feats))
@@ -119,12 +157,17 @@ export async function mineLessons(): Promise<string[]> {
         gapPp > 0
           ? `مغز کشف کرد در داده‌های اخیر، «${p.titleFa}» نتیجهٔ بهتری از میانگین داده است (${statsFa}). سیگنال‌های مشابه امتیاز مثبت می‌گیرند.`
           : `مغز کشف کرد در داده‌های اخیر، «${p.titleFa}» نتیجهٔ بدتری از میانگین داده است (${statsFa}). سیگنال‌های مشابه جریمه می‌شوند و دروازهٔ استادی سخت‌گیرتر است.`
-      const existing = await db.brainLesson.findUnique({ where: { key: p.key }, select: { delta: true, active: true } })
-      await db.brainLesson.upsert({
-        where: { key: p.key },
-        update: { kind: 'pattern', titleFa: p.titleFa, bodyFa, statsFa, confidence, delta, active: true },
-        create: { key: p.key, kind: 'pattern', titleFa: p.titleFa, bodyFa, statsFa, confidence, delta, active: true },
-      })
+      const existing = await db.brainLesson.findUnique({ where: { key: p.key }, select: { delta: true, confidence: true, active: true } })
+      const unchanged = existing && existing.active && existing.delta === delta && existing.confidence === confidence
+      if (!unchanged) {
+        writes.push(
+          db.brainLesson.upsert({
+            where: { key: p.key },
+            update: { kind: 'pattern', titleFa: p.titleFa, bodyFa, statsFa, confidence, delta, active: true },
+            create: { key: p.key, kind: 'pattern', titleFa: p.titleFa, bodyFa, statsFa, confidence, delta, active: true },
+          }),
+        )
+      }
       if (!existing || !existing.active || Math.abs((existing.delta ?? 0) - delta) > 0.5) {
         changed.push(`${p.titleFa} (${dir})`)
       }
@@ -132,11 +175,12 @@ export async function mineLessons(): Promise<string[]> {
       // شواهد کافی نیست — درس کهنه نباید بی‌پایه اثر بگذارد
       const existing = await db.brainLesson.findUnique({ where: { key: p.key }, select: { active: true } })
       if (existing?.active) {
-        await db.brainLesson.update({ where: { key: p.key }, data: { active: false, delta: 0 } })
+        writes.push(db.brainLesson.update({ where: { key: p.key }, data: { active: false, delta: 0 } }))
         changed.push(`بازنگری «${p.titleFa}» — شواهد کافی نیست، غیرفعال شد`)
       }
     }
   }
+  if (writes.length) await db.$transaction(writes)
   return changed
 }
 

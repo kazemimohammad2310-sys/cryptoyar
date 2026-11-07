@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import type { PrismaPromise } from '@prisma/client'
 import { getBrainWeights, getSetting, setSetting, FEATURE_KEYS, type FeatureKey } from '@/lib/settings'
 import { rsi, macd, emaSeries, atr, volumeZ, slopePct, lastClose } from '@/lib/indicators'
 import { loadCandles, type Interval } from '@/lib/candles'
@@ -327,8 +328,15 @@ export async function evaluateDueSamples(now = Date.now()): Promise<SampleEvalRe
   for (const [symbol, samples] of bySymbol) {
     const oldest = Math.min(...samples.map((s) => s.createdAt.getTime()))
     if (now - oldest < 15 * 60_000) continue // no closed 15m bar since creation
-    const candles = await loadCandles(symbol, '15m', 700) // ~7 days
+    // Brain v4: adaptive candle load — fetch only as many bars as the oldest
+    // pending sample actually needs (15m bars since creation + closed-bar margin).
+    // Pending samples live ≤72h → ~290 bars instead of a fixed 700 → far less
+    // DB/API load per training hour.
+    const spanMs = now - oldest
+    const needBars = Math.min(700, Math.max(2, Math.ceil(spanMs / 900_000) + 2))
+    const candles = await loadCandles(symbol, '15m', needBars)
     if (candles.length < 2) continue
+    const ops: PrismaPromise<unknown>[] = []
     for (const s of samples) {
       const createdTs = s.createdAt.getTime()
       const dueTs = createdTs + s.horizonHours * 3600_000
@@ -345,10 +353,12 @@ export async function evaluateDueSamples(now = Date.now()): Promise<SampleEvalRe
         const endPrice = path[path.length - 1].close
         const rawPnl = ((sideLong ? endPrice - entry : entry - endPrice) / entry) * 100
         const { ft, ftPnl } = firstTouchScan(s.side, entry, s.stopLoss, s.takeProfit, path)
-        await db.brainSample.update({
-          where: { id: s.id },
-          data: { outcome: outcomeOf(rawPnl), pnlPct: rawPnl, ftOutcome: ft, ftPnlPct: ftPnl, evaluatedAt: new Date() },
-        })
+        ops.push(
+          db.brainSample.update({
+            where: { id: s.id },
+            data: { outcome: outcomeOf(rawPnl), pnlPct: rawPnl, ftOutcome: ft, ftPnlPct: ftPnl, evaluatedAt: new Date() },
+          }),
+        )
         evaluated++
         if (ft === 'tp') tpHits++
         else if (ft === 'sl') slHits++
@@ -357,16 +367,20 @@ export async function evaluateDueSamples(now = Date.now()): Promise<SampleEvalRe
         // early finalization: first touch already happened → sample is done
         const { ft, ftPnl } = firstTouchScan(s.side, entry, s.stopLoss, s.takeProfit, pathAll)
         if (ft !== 'timeout' && ftPnl !== null) {
-          await db.brainSample.update({
-            where: { id: s.id },
-            data: { outcome: outcomeOf(ftPnl), pnlPct: ftPnl, ftOutcome: ft, ftPnlPct: ftPnl, evaluatedAt: new Date() },
-          })
+          ops.push(
+            db.brainSample.update({
+              where: { id: s.id },
+              data: { outcome: outcomeOf(ftPnl), pnlPct: ftPnl, ftOutcome: ft, ftPnlPct: ftPnl, evaluatedAt: new Date() },
+            }),
+          )
           evaluated++
           if (ft === 'tp') tpHits++
           else slHits++
         }
       }
     }
+    // Brain v4: batch all updates for this symbol in one transaction
+    if (ops.length) await db.$transaction(ops)
   }
   return { evaluated, tpHits, slHits, timeouts }
 }
@@ -379,7 +393,7 @@ export async function evaluateDueSamples(now = Date.now()): Promise<SampleEvalRe
 //  • per-strategy trust multipliers learned from real ft outcomes
 
 const TRAIN_TAKE = 3000
-const HALF_LIFE_DAYS = 21
+const HALF_LIFE_DAYS = 14 // Brain v4: 21→14 — مغز سریع‌تر با تغییر رژیم بازار هم‌راستا می‌شود
 const MIN_VOTES_PER_FEATURE = 15
 const MIN_SAMPLES_PER_STRATEGY = 8
 

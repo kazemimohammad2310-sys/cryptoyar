@@ -48,7 +48,7 @@ const JOB_INTERVAL_MS: Record<string, number> = {
   'self-heal': 10 * 60_000,
   'self-optimize': 60 * 60_000,
   'self-update': 60 * 60_000,
-  'brain-train': 60 * 60_000,
+  'brain-train': 30 * 60_000,
   'equity-snapshot': 60 * 60_000,
   health: 5 * 60_000,
   'self-test': 5 * 60_000,
