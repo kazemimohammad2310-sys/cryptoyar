@@ -16,6 +16,8 @@ export interface LessonFeats {
   stretch?: number
   atrPct?: number
   hourUtc?: number // ساعت UTC لحظهٔ ثبت نمونه (برای درس‌های زمانی)
+  volume?: number // حجم نرمال‌شده (برای درس شکست بی‌حجم)
+  cvd?: number // فشار خرید تهاجمی نرمال‌شده (Brain v4)
 }
 
 export interface LessonPattern {
@@ -88,6 +90,37 @@ export const LESSON_PATTERNS: LessonPattern[] = [
       const a = f.atrPct ?? 0
       return a >= 3.5 && a <= 6
     },
+  },
+  // ─── درس‌های پامپ (Brain v4): تفکیک پامپ واقعی از فیک ───
+  {
+    key: 'long_oi_pump',
+    side: 'long',
+    titleFa: 'خرید همراه ورود پول نو به فیوچرز (قیمت و OI هم‌جهت)',
+    test: (f) => (f.oi ?? 0) >= 0.2 && (f.mtf ?? 0) >= 0.2,
+  },
+  {
+    key: 'short_oi_dump',
+    side: 'short',
+    titleFa: 'فروش همراه ورود پول نو به شورت (قیمت و OI هم‌جهت)',
+    test: (f) => (f.oi ?? 0) >= 0.2 && (f.mtf ?? 0) <= -0.2,
+  },
+  {
+    key: 'quiet_move',
+    side: 'any',
+    titleFa: 'حرکت بدون حجم معنادار (احتمال پامپ فیک)',
+    test: (f) => Math.abs(f.volume ?? 0.5) < 0.2,
+  },
+  {
+    key: 'aggressive_buy_cheap_funding',
+    side: 'long',
+    titleFa: 'خرید تهاجمی (CVD مثبت) با فاندینگ منفی',
+    test: (f) => (f.cvd ?? 0) >= 0.3 && (f.fundingRaw ?? 0) <= 0,
+  },
+  {
+    key: 'aggressive_sell_hot_funding',
+    side: 'short',
+    titleFa: 'فروش تهاجمی (CVD منفی) با فاندینگ مثبت',
+    test: (f) => (f.cvd ?? 0) <= -0.3 && (f.fundingRaw ?? 0) >= 0,
   },
   { key: 'side_long_global', side: 'long', titleFa: 'معاملات خرید (لانگ) در وضعیت فعلی بازار', test: () => true },
   { key: 'side_short_global', side: 'short', titleFa: 'معاملات فروش (شورت) در وضعیت فعلی بازار', test: () => true },

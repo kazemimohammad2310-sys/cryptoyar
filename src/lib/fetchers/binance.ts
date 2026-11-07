@@ -24,6 +24,7 @@ export interface CandleRow {
   low: number
   close: number
   volume: number
+  takerBuyBase?: number // Brain v4 pump-pack: taker-buy base volume (aggressive buys) — undefined when unavailable
 }
 
 /** GET from the working Binance spot base; auto-failover to the mirror. */
@@ -53,14 +54,18 @@ export async function getKlines(symbol: string, interval: string, limit: number)
     '/api/v3/klines',
     `?symbol=${symbol}&interval=${interval}&limit=${limit}`,
   )
-  return data.map((k) => ({
-    ts: Number(k[0]),
-    open: Number(k[1]),
-    high: Number(k[2]),
-    low: Number(k[3]),
-    close: Number(k[4]),
-    volume: Number(k[5]),
-  }))
+  return data.map((k) => {
+    const tb = Number(k[9])
+    return {
+      ts: Number(k[0]),
+      open: Number(k[1]),
+      high: Number(k[2]),
+      low: Number(k[3]),
+      close: Number(k[4]),
+      volume: Number(k[5]),
+      takerBuyBase: Number.isFinite(tb) ? tb : undefined,
+    }
+  })
 }
 
 export async function getAllTickers(): Promise<BinanceTicker[]> {

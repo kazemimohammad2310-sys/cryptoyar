@@ -30,6 +30,7 @@ model Candle {
   low      Float
   close    Float
   volume   Float
+  takerBuy Float? // Brain v4: aggressive taker-buy base volume — null for historical rows
 
   @@unique([symbol, interval, ts])
   @@index([symbol, interval])

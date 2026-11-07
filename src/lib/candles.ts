@@ -13,8 +13,16 @@ export const INTERVAL_MS: Record<Interval, number> = {
   '1d': 24 * 60 * 60_000,
 }
 
-export function rowsToCandleRows(rows: { ts: Date; open: number; high: number; low: number; close: number; volume: number }[]): CandleRow[] {
-  return rows.map((r) => ({ ts: r.ts.getTime(), open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume }))
+export function rowsToCandleRows(rows: { ts: Date; open: number; high: number; low: number; close: number; volume: number; takerBuy?: number | null }[]): CandleRow[] {
+  return rows.map((r) => ({
+    ts: r.ts.getTime(),
+    open: r.open,
+    high: r.high,
+    low: r.low,
+    close: r.close,
+    volume: r.volume,
+    takerBuyBase: r.takerBuy ?? undefined,
+  }))
 }
 
 export async function loadCandles(symbol: string, interval: Interval, limit = 300): Promise<CandleRow[]> {
@@ -46,13 +54,13 @@ export async function upsertCandles(symbol: string, interval: Interval, rows: Ca
   const CHUNK = 80
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK)
-    const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
-    const values: (string | number)[] = []
+    const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const values: (string | number | null)[] = []
     for (const r of chunk) {
-      values.push(symbol, interval, r.ts, r.open, r.high, r.low, r.close, r.volume)
+      values.push(symbol, interval, r.ts, r.open, r.high, r.low, r.close, r.volume, r.takerBuyBase ?? null)
     }
     await db.$executeRawUnsafe(
-      `INSERT OR IGNORE INTO "Candle" ("symbol", "interval", "ts", "open", "high", "low", "close", "volume") VALUES ${placeholders}`,
+      `INSERT OR IGNORE INTO "Candle" ("symbol", "interval", "ts", "open", "high", "low", "close", "volume", "takerBuy") VALUES ${placeholders}`,
       ...values,
     )
   }

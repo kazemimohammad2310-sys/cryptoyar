@@ -2,8 +2,8 @@ import { db } from '@/lib/db'
 
 // ─── Typed settings store (Setting table) with defaults from §3 ───
 
-export type FeatureKey = 'rsi' | 'trend' | 'macd' | 'volume' | 'funding' | 'oi' | 'stretch' | 'btc' | 'mtf'
-export const FEATURE_KEYS: FeatureKey[] = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf']
+export type FeatureKey = 'rsi' | 'trend' | 'macd' | 'volume' | 'funding' | 'oi' | 'stretch' | 'btc' | 'mtf' | 'cvd' | 'oiRegime' | 'volSurge'
+export const FEATURE_KEYS: FeatureKey[] = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf', 'cvd', 'oiRegime', 'volSurge']
 
 export const DEFAULT_WEIGHTS: Record<FeatureKey, number> = {
   rsi: 20,
@@ -15,6 +15,9 @@ export const DEFAULT_WEIGHTS: Record<FeatureKey, number> = {
   stretch: 8,
   btc: 12,
   mtf: 14, // Brain v2: 4h multi-timeframe trend confirmation
+  cvd: 14, // Brain v4 pump-pack: aggressive taker-buy pressure
+  oiRegime: 10, // Brain v4: OI-vs-price confluence (real pump vs squeeze)
+  volSurge: 10, // Brain v4: volume surge vs 20-bar baseline
 }
 
 export const DEFAULT_SETTINGS: Record<string, string> = {

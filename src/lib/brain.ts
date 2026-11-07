@@ -28,6 +28,9 @@ export interface FeatureVector {
   stretch: number // in [-1,1] overbought/oversold stretch penalty
   btc: number // in [-1,1] market beta
   mtf: number // in [-1,1] 4h multi-timeframe trend confirmation (Brain v2)
+  cvd: number // in [-1,1] aggressive taker-buy pressure over last 24 bars (Brain v4 pump-pack)
+  oiRegime: number // in [-1,1] OI-vs-price confluence: real pump fuel vs fragile squeeze (Brain v4)
+  volSurge: number // in [-1,1] volume surge vs 20-bar baseline (Brain v4)
   // raw values for display
   rsiRaw: number
   atrPct: number
@@ -124,6 +127,45 @@ export function computeFeatures(input: FeatureInput): FeatureVector | null {
     }
   }
 
+  // Brain v4 pump-pack ───────────────────────────────────────
+  // 1) CVD (aggressive taker-buy pressure): share of volume taken by
+  //    aggressive buyers over the last 24 bars. 0.5 = balanced; >0.55
+  //    = buyers in control (whale-style aggression). Falls back to 0
+  //    (neutral) when taker-buy data is unavailable (old DB rows).
+  let fCvd = 0
+  {
+    const w = c.slice(-24)
+    const withTb = w.filter((x) => typeof x.takerBuyBase === 'number')
+    if (withTb.length >= Math.ceil(w.length * 0.6)) {
+      const totalVol = withTb.reduce((a, x) => a + x.volume, 0)
+      const buyVol = withTb.reduce((a, x) => a + (x.takerBuyBase ?? 0), 0)
+      if (totalVol > 0) fCvd = tanh(((buyVol - totalVol / 2) / totalVol) * 6)
+    }
+  }
+
+  // 2) OI regime: 24h price move × OI change confluence.
+  //    price↑+OI↑ = real pump (new money) → positive, strong.
+  //    price↑+OI↓ = short squeeze (fragile) → positive but weak (0.45×).
+  //    Mirrored for down-moves. Neutral when OI unavailable.
+  let fOiRegime = 0
+  if (c.length > 25 && oiChangePct !== null) {
+    const ret24 = (price / closes[closes.length - 25] - 1) * 100
+    const aligned = Math.sign(ret24) === Math.sign(oiChangePct)
+    const mag = tanh(Math.abs(oiChangePct) / 10) * Math.min(1, Math.abs(ret24) / 4) * (aligned ? 1 : 0.45)
+    fOiRegime = Math.sign(ret24) * mag
+  }
+
+  // 3) Volume surge: mean volume of the last 6 bars vs the 20-bar baseline.
+  //    ~2.5× surge → +0.66; dead tape 0.4× → −0.4.
+  let fVolSurge = 0
+  if (c.length > 26) {
+    const base = c.slice(-26, -6)
+    const recent = c.slice(-6)
+    const baseMean = base.reduce((a, x) => a + x.volume, 0) / base.length
+    const recentMean = recent.reduce((a, x) => a + x.volume, 0) / recent.length
+    if (baseMean > 0) fVolSurge = tanh((recentMean / baseMean - 1) / 1.5)
+  }
+
   return {
     rsi: fRsi,
     trend: fTrend,
@@ -134,6 +176,9 @@ export function computeFeatures(input: FeatureInput): FeatureVector | null {
     stretch: fStretch,
     btc: fBtc,
     mtf: fMtf,
+    cvd: fCvd,
+    oiRegime: fOiRegime,
+    volSurge: fVolSurge,
     rsiRaw,
     atrPct,
     volZ: vZ,
@@ -157,6 +202,9 @@ const FEATURE_FA: Record<FeatureKey, string> = {
   stretch: 'اشباع',
   btc: 'بیت‌کوین',
   mtf: 'روند ۴ساعته',
+  cvd: 'فشار خرید تهاجمی',
+  oiRegime: 'رژیم OI',
+  volSurge: 'موج حجم',
 }
 
 export function scoreFeatures(f: FeatureVector, weights: Record<FeatureKey, number>): ScoreResult {
@@ -170,6 +218,9 @@ export function scoreFeatures(f: FeatureVector, weights: Record<FeatureKey, numb
     stretch: f.stretch,
     btc: f.btc,
     mtf: f.mtf,
+    cvd: f.cvd,
+    oiRegime: f.oiRegime,
+    volSurge: f.volSurge,
   }
   let num = 0
   let den = 0
@@ -222,6 +273,9 @@ export function buildReasonBodyFa(f: FeatureVector, top: ScoreResult['contributi
     else if (c.key === 'oi' && f.oiChangePct !== null) parts.push(`قراردادهای باز ${faNum(f.oiChangePct, 1)}٪ ${f.oiChangePct > 0 ? 'رشد' : 'افت'}`)
     else if (c.key === 'btc') parts.push(`بازگشت ۲۴س بیت‌کوین ${faNum(f.btcRet24h, 1)}٪`)
     else if (c.key === 'mtf') parts.push(`روند ۴ساعته ${f.mtf > 0 ? 'صعودی' : 'نزولی'}`)
+    else if (c.key === 'cvd') parts.push(`فشار خرید تهاجمی ${f.cvd > 0 ? 'در کنترل خریداران' : 'در کنترل فروشندگان'}`)
+    else if (c.key === 'oiRegime') parts.push(f.oiRegime > 0.15 ? 'ورود پول نو به فیوچرز (پامپ سوخت‌دار)' : f.oiRegime < -0.15 ? 'رژیم OI شکننده' : 'رژیم OI خنثی')
+    else if (c.key === 'volSurge') parts.push(`موج حجم ${f.volSurge > 0 ? `${faNum(f.volSurge, 1)} — فعالیت بالاتر از معمول` : 'خاموش'}`)
     else if (c.key === 'stretch') parts.push(f.stretch < 0 ? 'اشباع خرید' : 'اشباع فروش')
   }
   return parts.length ? parts.join('، ') : 'سیگنال ترکیبی از میانگین ویژگی‌ها'
@@ -262,6 +316,13 @@ export async function recordSamples(params: {
       stretch: params.features.stretch,
       btc: params.features.btc,
       mtf: params.features.mtf,
+      cvd: params.features.cvd,
+      oiRegime: params.features.oiRegime,
+      volSurge: params.features.volSurge,
+      // raw fields — lesson patterns mine on these (v4 fix: they were missing)
+      rsiRaw: params.features.rsiRaw,
+      atrPct: params.features.atrPct,
+      fundingRaw: params.features.fundingRaw,
     }),
     predicted: params.side === 'long' ? 'up' : 'down',
   }
@@ -507,6 +568,9 @@ const DEFAULT_MAX: Partial<Record<FeatureKey, number>> = {
   stretch: 13,
   btc: 20,
   mtf: 26,
+  cvd: 22,
+  oiRegime: 18,
+  volSurge: 14,
 }
 
 // ─── Self-test: directional accuracy over the last 200 evaluated samples ───

@@ -89,7 +89,15 @@ export function checkMomentumBreakout(c: CandleRow[]): 'long' | null {
   const high7d = Math.max(...prev.map((x) => x.high))
   const last = c[c.length - 1]
   const volZ = recentVolZ(c)
-  return last.close > high7d * 0.99 && volZ > 1.5 ? 'long' : null
+  if (!(last.close > high7d * 0.99 && volZ > 1.5)) return null
+  // Brain v4 pump-pack: breakout must be backed by aggressive buyers, not
+  // passive drift. When taker-buy data exists, buyers must take >52% of the
+  // breakout bar's volume (whale-style aggression filter against fake pumps).
+  if (typeof last.takerBuyBase === 'number' && last.volume > 0) {
+    const takerShare = last.takerBuyBase / last.volume
+    if (takerShare < 0.52) return null
+  }
+  return 'long'
 }
 
 export function checkMeanReversion(c: CandleRow[]): 'long' | 'short' | null {
