@@ -8,8 +8,9 @@ import { promisify } from 'util'
 import { db, ensurePragmas } from '@/lib/db'
 import { getSetting, getBrainWeights, getBotConfig, getFuturesConfig, type FeatureKey } from '@/lib/settings'
 import { currentEquity, liquidationPrice, roeOf } from '@/lib/fund'
-import { runSelfTest, STRATEGY_FA as STRATEGY_FA_LOCAL } from '@/lib/brain'
+import { runSelfTest, computeFeatures, STRATEGY_FA as STRATEGY_FA_LOCAL } from '@/lib/brain'
 import { BOT_PREFIX } from '@/lib/autotrader'
+import { getKlines } from '@/lib/fetchers/binance'
 import { computeFundamentals, faBigUsd, type FundamentalRow } from '@/lib/fundamentals'
 import { faNum, faPct, faPrice } from '@/lib/fa'
 
@@ -309,7 +310,61 @@ async function main(): Promise<void> {
       </div>`
     : '<div class="card"><div class="reason">دادهٔ بنیادی هنوز جمع نشده — بعد از اولین چرخهٔ کامل داده‌ها پر می‌شود.</div></div>'
 
-  const tabRadar = signals.length
+  // ─── پامپ‌سنج زنده (Brain v4): CVD + موج حجم برای چند ارز شاخص — دادهٔ رایگان بایننس ───
+  const PUMP_SCAN_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT']
+  type PumpRow = { symbol: string; cvd: number; volSurge: number; verdictFa: string; vcls: string }
+  const pumpRows: PumpRow[] = []
+  const pumpScans = await Promise.all(
+    PUMP_SCAN_SYMBOLS.map(async (sym): Promise<PumpRow | null> => {
+      try {
+        const c = await getKlines(sym, '1h', 200)
+        const f = computeFeatures({ candles1h: c, fundingRaw: null, oiNow: null, oi24hAgo: null, btcRet24h: 0 })
+        if (!f) return null
+        let verdictFa = 'آرام و بی‌جهت'
+        let vcls = 'sub'
+        if (f.volSurge > 0 && f.cvd > 0.15) {
+          verdictFa = 'پامپ تأییدشده — خرید تهاجمی با موج حجم (پول واقعی)'
+          vcls = 'up'
+        } else if (f.volSurge > 0 && f.cvd < -0.15) {
+          verdictFa = 'ریزش فعال — فروش تهاجمی با موج حجم'
+          vcls = 'down'
+        } else if (f.cvd > 0.15) {
+          verdictFa = 'خرید تهاجمی بدون موج حجم — منتظر تأیید حجم'
+          vcls = ''
+        } else if (f.cvd < -0.15) {
+          verdictFa = 'فشار فروش بدون موج حجم'
+          vcls = ''
+        }
+        return { symbol: sym, cvd: f.cvd, volSurge: f.volSurge, verdictFa, vcls }
+      } catch {
+        return null
+      }
+    }),
+  )
+  for (const r of pumpScans) if (r) pumpRows.push(r)
+
+  const pumpMeter = `
+    <div class="card">
+      <h2>پامپ‌سنج — چشم‌های جدید رادار (نسخهٔ ۴ مغز)</h2>
+      <div class="reason">رادار حالا سه چشم جدید دارد: <b>CVD</b> (فشار خرید تهاجمی — نشان می‌دهد خریداران واقعی فعال‌اند یا فروشندگان)، <b>موج حجم</b> (حجم معامله در برابر میانگین ۲۰ کندل) و <b>رژیم OI</b> (ورود پول نو به فیوچرز). قاعدهٔ جدید ربات: شکست مومنتوم فقط وقتی وارد معامله می‌شود که حجم و خرید تهاجمی هر دو تأیید کنند — شکست بی‌حجم یا با فروش تهاجمی، «فیک» شمرده می‌شود و رد می‌شود.</div>
+      ${
+        pumpRows.length
+          ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">${pumpRows
+              .map(
+                (p) => `<div style="border:1px solid #1e242c;border-radius:10px;padding:8px 10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <b style="font-size:12px">${esc(p.symbol.replace('USDT', ''))}/USDT</b>
+            <span class="sub">CVD ${faNum(p.cvd, 2)} · موج حجم ${faNum(p.volSurge, 2)}</span>
+          </div>
+          <div class="${p.vcls}" style="font-size:11px;margin-top:3px">${esc(p.verdictFa)}</div>
+        </div>`,
+              )
+              .join('')}</div>`
+          : '<div class="reason">پامپ‌سنج در چرخهٔ بعدی پر می‌شود.</div>'
+      }
+    </div>`
+
+  const tabRadar = `${pumpMeter}${signals.length
     ? `<div class="card">
         ${signals
           .map(
@@ -333,7 +388,7 @@ async function main(): Promise<void> {
           )
           .join('')}
       </div>`
-    : '<div class="card"><div class="reason">هنوز سیگنالی ثبت نشده — رادار هر ۱۵ دقیقه بازار را اسکن می‌کند.</div></div>'
+    : '<div class="card"><div class="reason">هنوز سیگنالی ثبت نشده — رادار هر ۱۵ دقیقه بازار را اسکن می‌کند.</div></div>'}`
 
   const tabFund = `
     <div class="kpis">
@@ -359,7 +414,7 @@ async function main(): Promise<void> {
         · حداقل امتیاز ورود: ${faNum(bot.minScore, 0)} · سقف پوزیشن ربات: ${faNum(bot.maxOpen, 0)} · خنک‌شدن پس از ضرر: ${faNum(bot.cooldownHours, 0)} ساعت
       </div>
       <div class="reason" style="margin-top:6px">تحلیل استادی: پیش از هر ورود، بنیاد ارز، اشباع RSI، نوسان ATR، فاندینگ ازدحام و روند ۴ساعته (MTF) بررسی می‌شود و همگرایی ۹ فاکتور تکنیکال شمرده می‌شود؛ ${futures.mode === 'auto' ? 'اهرم هر معامله با بنیاد همان ارز تنظیم می‌گردد (ضعیف بدون اهرم، متوسط تا ×۳، قوی تا سقف)' : `همهٔ معامله‌ها با اهرم ثابت <b class="warn">×${faNum(futures.fixedLev, 0)}</b> باز می‌شوند`}.</div>
-      <div class="reason" style="margin-top:6px">قوانین مدیریت: بعد از سود +۱٪ حد ضرر به سر‌به‌سر می‌رود، بعد از +۱٫۶٪ متحرک می‌شود، و معاملهٔ بی‌تحرک بعد از ۷۲ ساعت بسته می‌شود.</div>
+      <div class="reason" style="margin-top:6px">قوانین مدیریت: بعد از سود ‎+۱٪ حد ضرر به سر‌به‌سر می‌رود، بعد از ‎+۱٫۶٪ متحرک می‌شود، و معاملهٔ بی‌تحرک بعد از ۷۲ ساعت بسته می‌شود. <b>گیت پامپ (جدید):</b> شکست مومنتوم فقط با تأیید حجم و خرید تهاجمی (CVD) وارد می‌شود؛ پامپ‌های تأییدشده زودتر و تنگ‌تر تریل می‌شوند (‎+۱٪ با فاصلهٔ ۰٫۸٪) تا سود قبل از فروپاشی قفل شود.</div>
       <div class="reason" style="margin-top:6px">آخرین فعالیت ربات: ${
         lastBotLog
           ? `${lastBotLog.ok ? '<b class="up">موفق</b>' : '<b class="down">خطا</b>'} — ${esc(lastBotLog.detail ?? '')} <span class="sub">(${FA_TIME.format(lastBotLog.startedAt)})</span>`
