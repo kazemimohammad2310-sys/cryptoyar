@@ -692,7 +692,7 @@ async function main(): Promise<void> {
 <main>
   <header>
     <h1>کریپتویار — شکار بهترین کوین‌ها در بهترین زمان</h1>
-    <div class="sub">به‌روزرسانی: ${FA_TIME.format(new Date())} (تهران) · هر ۱۵ دقیقه توسط GitHub Actions</div>
+    <div class="sub">به‌روزرسانی: ${FA_TIME.format(new Date())} (تهران) · هر ۵ دقیقه توسط GitHub Actions</div>
   </header>
 
   <nav class="tabs" aria-label="بخش‌های داشبورد">
