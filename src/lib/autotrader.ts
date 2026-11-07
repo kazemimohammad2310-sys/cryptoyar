@@ -17,6 +17,8 @@ import { faNum } from '@/lib/fa'
 //   ۳) نوسان مرده (< ‎۰٫۲۵٪) یا خطرناک (> ۹٪ ATR روزانه) → ممنوع
 //   ۴) فاندینگ ازدحام‌شده خلاف جهت معامله (جز ناهنجاری فاندینگ) → ممنوع
 //   ۵) MTF تایم‌فریم ۴ساعته کاملاً مخالف مومنتوم‌ها → ممنوع
+//   ۶) گیت پامپ (Brain v4): شکست مومنتوم فقط با تأیید حجم + خرید تهاجمی (CVD) وارد می‌شود —
+//      و پامپ تأییدشده تریلینگ سریع‌تری دارد تا سود قبل از فروپاشی قفل شود
 //   + شمارش همگرایی ۹ فاکتور تکنیکال برای ثبت در دلیل معامله و اهرم متناسب با بنیاد
 
 export const BOT_PREFIX = 'ربات خودکار'
@@ -37,12 +39,21 @@ const ATR_DANGER_PCT = 9
 const FUNDING_CROWDED = 0.0015
 const MTF_HARD_AGAINST = 0.4
 
+// گیت پامپ (Brain v4) + تریلینگ سریع پامپ تأییدشده
+const MB_MIN_VOLZ = 1.5 // شکست مومنتوم باید حجم ≥ ۱٫۵ انحراف معیار داشته باشد
+const PUMP_TRAIL_AT_PCT = 1.0 // پامپ تأییدشده: تریلینگ از ‎+۱٪ شروع می‌شود (به‌جای ‎+۱٫۶٪)
+const PUMP_TRAIL_GAP_PCT = 0.8 // ...و فاصلهٔ تریل ۰٫۸٪ است (به‌جای ۱٫۲٪) — سود زودتر قفل می‌شود
+const PUMP_CVD_EDGE = 0.15 // آستانهٔ خرید تهاجمی هم‌جهت برای تشخیص پامپ واقعی
+
 const DIRECTIONAL_FEATURES = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf'] as const
 
 type SigFeatures = Partial<Record<(typeof DIRECTIONAL_FEATURES)[number], number>> & {
   rsiRaw?: number
   volZ?: number
   atrPct?: number
+  volSurge?: number
+  cvd?: number
+  oiRegime?: number
 }
 
 function parseFeatures(raw: string): SigFeatures {
@@ -51,6 +62,22 @@ function parseFeatures(raw: string): SigFeatures {
   } catch {
     return {}
   }
+}
+
+/**
+ * گیت پامپ (Brain v4): استراتژی شکست مومنتوم فقط با تأیید حجم + خرید تهاجمی (CVD) وارد می‌شود.
+ * شکست سقف بدون موج حجم = شکست فیک؛ شکست با حجم اما با فروش تهاجمی = پامپ مشکوک.
+ * null = عبور | رشتهٔ فارسی = دلیل رد.
+ */
+export function pumpGateFailReason(f: SigFeatures): string | null {
+  const volOk =
+    (typeof f.volZ === 'number' && Number.isFinite(f.volZ) && f.volZ >= MB_MIN_VOLZ) ||
+    (typeof f.volSurge === 'number' && Number.isFinite(f.volSurge) && f.volSurge > 0)
+  if (!volOk) return 'شکست بی‌حجم — موج حجم تأیید نکرد (احتمال شکست فیک)'
+  const cvd = f.cvd
+  if (typeof cvd !== 'number' || !Number.isFinite(cvd)) return 'دادهٔ خرید تهاجمی (CVD) در دسترس نیست — شکست تأیید نشد'
+  if (cvd <= 0) return 'خرید تهاجمی تأیید نکرد (CVD منفی) — پامپ مشکوک به فیک'
+  return null
 }
 
 /** چند فاکتور تکنیکال با جهت معامله همسو هستند؟ (۰ تا ۹) */
@@ -131,9 +158,34 @@ async function manageOne(p: {
   markPrice: number
   stopLoss: number
   openedAt: Date
+  sourceSignalId: number | null
 }): Promise<string | null> {
   const price = (await latestPrice(p.symbol)) ?? p.markPrice
   const pnlPct = pnlPctOf(p.side, p.entryPrice, price)
+
+  // Brain v4: پامپ تأییدشده (موج حجم + CVD هم‌جهت با معامله) → تریلینگ سریع‌تر
+  // چون پامپ‌های واقعی اوج کوتاه‌تری دارند؛ سود باید قبل از فروپاشی قفل شود.
+  let pumpTrail = false
+  if (p.sourceSignalId) {
+    try {
+      const sig = await db.signal.findUnique({ where: { id: p.sourceSignalId }, select: { featuresJson: true } })
+      if (sig) {
+        const f = parseFeatures(sig.featuresJson)
+        const cvdOk =
+          typeof f.cvd === 'number' &&
+          Number.isFinite(f.cvd) &&
+          (p.side === 'long' ? f.cvd > PUMP_CVD_EDGE : f.cvd < -PUMP_CVD_EDGE)
+        const volOk =
+          (typeof f.volSurge === 'number' && Number.isFinite(f.volSurge) && f.volSurge > 0) ||
+          (typeof f.volZ === 'number' && Number.isFinite(f.volZ) && f.volZ >= 2)
+        pumpTrail = cvdOk && volOk
+      }
+    } catch {
+      /* غیرحیاتی — تریلینگ عادی ادامه می‌یابد */
+    }
+  }
+  const trailAtPct = pumpTrail ? PUMP_TRAIL_AT_PCT : TRAIL_AT_PCT
+  const trailGapPct = pumpTrail ? PUMP_TRAIL_GAP_PCT : TRAIL_GAP_PCT
 
   // time-stop: dead trade → free the slot
   const hoursOpen = (Date.now() - p.openedAt.getTime()) / 3600_000
@@ -148,13 +200,15 @@ async function manageOne(p: {
     const be = p.side === 'long' ? p.entryPrice * 1.001 : p.entryPrice * 0.999
     if (stopImproved(p.side, p.stopLoss, be)) newStop = be
   }
-  // trailing: lock in profit beyond +1.6%
-  if (pnlPct >= TRAIL_AT_PCT) {
-    const trail = p.side === 'long' ? price * (1 - TRAIL_GAP_PCT / 100) : price * (1 + TRAIL_GAP_PCT / 100)
+  // trailing: lock in profit (sooner and tighter for pump-confirmed trades)
+  if (pnlPct >= trailAtPct) {
+    const trail = p.side === 'long' ? price * (1 - trailGapPct / 100) : price * (1 + trailGapPct / 100)
     if (newStop === null || stopImproved(p.side, newStop, trail)) newStop = trail
   }
   if (newStop !== null && stopImproved(p.side, p.stopLoss, newStop)) {
     await db.fundPosition.update({ where: { id: p.id }, data: { stopLoss: newStop } })
+    const kindFa =
+      pnlPct >= trailAtPct ? (pumpTrail ? 'تریلینگ سریع پامپ تأییدشده' : 'حد ضرر متحرک') : 'حد ضرر به سر‌به‌سر'
     await db.fundOrder.create({
       data: {
         kind: 'adjust',
@@ -162,10 +216,10 @@ async function manageOne(p: {
         side: p.side,
         qty: 0,
         price: newStop,
-        reasonFa: `${BOT_PREFIX} — ${pnlPct >= TRAIL_AT_PCT ? 'حد ضرر متحرک' : 'حد ضرر به سر‌به‌سر'} (سود لحظه‌ای ${faNum(pnlPct, 2)}٪)`,
+        reasonFa: `${BOT_PREFIX} — ${kindFa} (سود لحظه‌ای ${faNum(pnlPct, 2)}٪)`,
       },
     })
-    return `${p.symbol}: حد ضرر → ${newStop.toFixed(6)} (${pnlPct >= TRAIL_AT_PCT ? 'تریلینگ' : 'سر‌به‌سر'})`
+    return `${p.symbol}: حد ضرر → ${newStop.toFixed(6)} (${pnlPct >= trailAtPct ? (pumpTrail ? 'تریلینگ سریع پامپ' : 'تریلینگ') : 'سر‌به‌سر'})`
   }
   return null
 }
@@ -307,11 +361,25 @@ export async function runAutoTrader(): Promise<string> {
         }
       }
 
-      // ─── دروازهٔ استادی ───
       const side: 'long' | 'short' = s.side === 'short' ? 'short' : 'long'
       const absScore = Math.abs(s.score)
       const fundRow = fundMap.get(s.symbol) ?? null
       const f = parseFeatures(s.featuresJson)
+      // ─── گیت پامپ (Brain v4): مستقل از دروازهٔ استادی — شکست مومنتوم فقط با تأیید حجم + CVD ───
+      if (s.strategy === 'momentum_breakout') {
+        const pumpFail = pumpGateFailReason(f)
+        if (pumpFail) {
+          gated++
+          skipFa.push(`${s.symbol}: ${pumpFail}`)
+          try {
+            await db.signal.update({ where: { id: s.id }, data: { gateStatus: 'rejected', gateReasonFa: pumpFail } })
+          } catch {
+            /* غیرحیاتی */
+          }
+          continue
+        }
+      }
+      // ─── دروازهٔ استادی ───
       if (fut.expertGate === 'on') {
         const gateFail = expertGateFailReason(f, side, s.strategy, absScore, fundRow)
         if (gateFail) {

@@ -304,6 +304,9 @@ export async function persistRadarResult(result: RadarResult): Promise<number> {
             rsiRaw: s.features.rsiRaw,
             volZ: s.features.volZ,
             atrPct: s.features.atrPct,
+            volSurge: s.features.volSurge,
+            cvd: s.features.cvd,
+            oiRegime: s.features.oiRegime,
           }),
           reasonFa: s.reasonFa,
           // شفافیت کامل: دلیل «چرا ربات وارد نمی‌شود» از لحظهٔ ساخت روی سیگنال ثبت می‌شود؛
