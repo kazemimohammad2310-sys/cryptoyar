@@ -3,6 +3,8 @@
 // یک اجرای تازه فعال می‌کند و وضعیت نگهبان را در مخزن منتشر می‌کند.
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { existsSync, rmSync } from 'node:fs'
+import { Database } from 'bun:sqlite'
 import { db, ensurePragmas } from '../src/lib/db'
 import { runCloudWatchdog } from '../src/lib/autonomy'
 import { getSetting, setSetting } from '../src/lib/settings'
@@ -23,7 +25,43 @@ async function git(args: string[], timeoutMs = 90_000): Promise<{ ok: boolean; o
   }
 }
 
+// ─── خودترمیم دیتابیس محلی (حادثهٔ 2026-11-07) ───
+// محیط اجرا بین پیام‌ها گاهی پروژه را به اسنپ‌شات قدیمی برمی‌گرداند و فایل
+// دیتابیس محلی خراب می‌شود («database disk image is malformed») و نگهبان را
+// می‌کُشد. راه‌حل: قبل از هر اجرا سلامت فایل با sqlite خام (بدون prisma) چک
+// می‌شود و اگر خراب بود، نسخهٔ معتبر مستقیم از origin/main بازیابی می‌شود.
+function dbIntegrity(path: string): string {
+  try {
+    const probe = new Database(path, { readonly: true })
+    const row = probe.query('PRAGMA integrity_check').get() as { integrity_check?: string } | undefined
+    probe.close()
+    return row?.integrity_check ?? 'no-result'
+  } catch (e) {
+    return `open-failed: ${String(e).slice(0, 100)}`
+  }
+}
+
+async function selfHealDb(): Promise<void> {
+  const verdict = dbIntegrity('db/custom.db')
+  if (verdict === 'ok') return
+  console.log(`خودترمیم دیتابیس: فایل سالم نیست (${verdict}) — بازیابی از مخزن…`)
+  for (const f of ['db/custom.db-wal', 'db/custom.db-shm']) if (existsSync(f)) rmSync(f)
+  await git(['fetch', 'origin', 'main'], 120_000)
+  const co = await git(['checkout', 'origin/main', '--', 'db/custom.db'])
+  if (!co.ok) {
+    console.log('خودترمیم دیتابیس: ناموفق — ادامه با احتیاط')
+    return
+  }
+  const after = dbIntegrity('db/custom.db')
+  console.log(
+    after === 'ok'
+      ? 'خودترمیم دیتابیس: انجام شد ✓ (نسخهٔ معتبر از origin/main)'
+      : `خودترمیم دیتابیس: بعد از بازیابی هم سالم نیست (${after})`,
+  )
+}
+
 async function main(): Promise<void> {
+  await selfHealDb()
   await ensurePragmas()
   const res = await runCloudWatchdog()
   console.log(res.fa || 'ضربان ابر طبیعی است — نیازی به اقدام نبود')
