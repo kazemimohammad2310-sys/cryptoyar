@@ -19,6 +19,7 @@ export interface OpenParams {
   entryPrice?: number // optional override (uses latest ticker price by default)
   qty?: number // optional manual qty (still risk-capped)
   leverage?: number // optional override — otherwise auto per futures config
+  riskScale?: number // Restart v5.1 — حالت یادگیری: ضریب کاهش حجم (مثل ۰٫۵ = نصف ریسک)؛ سقف‌ها همچنان اعمال می‌شوند
   fundamentalLevel?: FundamentalLevel | null // از ربات: سطح بنیاد برای اهرم متناسب
 }
 
@@ -130,6 +131,11 @@ export async function openPosition(params: OpenParams): Promise<{ positionId: nu
   let notional = (cfg.riskPerTradePct / 100) * cfg.equity / slPct
   const capNotional = (cfg.maxPositionPct / 100) * cfg.equity
   if (notional > capNotional) notional = capNotional
+  // حالت یادگیری: ضریب کاهش حجم «بعد از» سقف اعمال می‌شود تا واقعاً نصف ریسک باشد
+  // (شهریهٔ ارزان برای دادهٔ آموزشی مغز)
+  if (params.riskScale && Number.isFinite(params.riskScale) && params.riskScale > 0 && params.riskScale < 1) {
+    notional *= params.riskScale
+  }
   if (notional < 10) throw new FundError('حجم معامله پس از اعمال قواعد ریسک بیش از حد کوچک است')
 
   let qty = notional / entry

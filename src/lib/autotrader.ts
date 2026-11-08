@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { getBotConfig, getRiskConfig, getFuturesConfig, getStrategyTrust } from '@/lib/settings'
+import { getBotConfig, getRiskConfig, getFuturesConfig, getStrategyTrust, getLearningConfig } from '@/lib/settings'
 import { openPosition, closePosition, latestPrice, isCircuitBreakerTripped } from '@/lib/fund'
 import { computeFundamentals, type FundamentalRow } from '@/lib/fundamentals'
 import { STRATEGY_FA } from '@/lib/brain'
@@ -22,6 +22,10 @@ import { faNum } from '@/lib/fa'
 //   ۷) سقف هم‌جهت (Restart v5): حداکثر ۲ پوزیشن همزمان در یک جهت — هر ۳ خرید با هم قرمز نشود
 //   ۸) قطع‌کن مدار استراتژی (Restart v5): ۳ ضرر پیاپی یک استراتژی → توقف ۲۴ ساعتهٔ ورود آن
 //   ۹) آستانهٔ اعتماد مغز (Restart v5): اعتماد کم مغز به یک استراتژی → آستانهٔ ورود بالاتر
+//   ۱۰) حالت یادگیری (Restart v5.1): اگر سیگنالی از آستانهٔ سخت‌گیرانه عبور نکند، ربات هر
+//       ‎learnIdleHours ساعت یک‌بار با بهترین سیگنال تازهٔ بالای آستانهٔ یادگیری و نصف ریسک وارد
+//       می‌شود تا مغز از نتایج واقعی درس بگیرد — دروازه‌های ایمن ‎۲ تا ۶ کامل اعمال می‌شوند؛
+//       فقط شرط «بنیاد قوی» در ورود یادگیری ملایم‌تر است (نصف ریسک جبران می‌کند)
 //   + شمارش همگرایی ۹ فاکتور تکنیکال برای ثبت در دلیل معامله و اهرم متناسب با بنیاد
 
 export const BOT_PREFIX = 'ربات خودکار'
@@ -57,6 +61,13 @@ export const TRUSTED_MIN = 1.1 // اعتماد مغز بیشتر از این →
 export const LOW_TRUST_EXTRA_SCORE = 5 // جریمهٔ امتیاز برای استراتژی کم‌اعتماد
 export const TRUSTED_DISCOUNT = 2 // تخفیف امتیاز برای استراتژی پراعتماد
 export const TRUST_SCORE_FLOOR = 60 // آستانهٔ ورود هرگز زیر این نمی‌رود
+
+// Restart v5.1 — حالت یادگیری: مغز برای درس گرفتن به معاملهٔ واقعی نیاز دارد
+export const LEARN_TAG = 'معاملهٔ یادگیری' // برچسب در reasonFa پوزیشن‌های یادگیری
+export const LEARN_MIN_SCORE_DEFAULT = 42 // آستانهٔ امتیاز یادگیری (سیگنال‌های watch را هم می‌بیند)
+export const LEARN_IDLE_H_DEFAULT = 4 // بین دو ورود یادگیری حداقل این‌قدر فاصله (ساعت)
+export const LEARN_MAX_OPEN_DEFAULT = 2 // حداکثر پوزیشن یادگیری همزمان
+export const LEARN_RISK_SCALE_DEFAULT = 0.5 // حجم ورود یادگیری = نصف حجم عادی
 
 const DIRECTIONAL_FEATURES = ['rsi', 'trend', 'macd', 'volume', 'funding', 'oi', 'stretch', 'btc', 'mtf'] as const
 
@@ -139,6 +150,38 @@ export function trustAdjustedMinScore(baseMinScore: number, trust: number | unde
   return { min: baseMinScore, fa: `اعتماد مغز خنثی (×${faNum(tr, 2)})` }
 }
 
+/**
+ * Restart v5.1 — آیا این چرخه اجازهٔ ورود یادگیری داریم؟ (تابع خالص — قابل تست)
+ * فلسفه: مغز از نتایج واقعی یاد می‌گیرد؛ وقتی بازار سیگنال قوی نمی‌سازد،
+ * ورود کوچک یادگیری دادهٔ آموزشی می‌سازد — ولی با ریتم و سقف مشخص.
+ */
+export function learningEntryAllowed(opts: {
+  learnMode: string
+  capacity: number
+  openLearnCount: number
+  learnMaxOpen: number
+  lastBotEntryAt: Date | null
+  learnIdleHours: number
+  now?: number
+}): { ok: boolean; fa: string } {
+  if (opts.learnMode !== 'on') return { ok: false, fa: 'حالت یادگیری خاموش است' }
+  if (opts.capacity <= 0) return { ok: false, fa: 'ظرفیت پوزیشن ربات پر است' }
+  if (opts.openLearnCount >= opts.learnMaxOpen) {
+    return { ok: false, fa: `سقف معاملات یادگیری (${faNum(opts.learnMaxOpen, 0)} پوزیشن) پر است` }
+  }
+  const now = opts.now ?? Date.now()
+  if (opts.lastBotEntryAt) {
+    const idleH = (now - opts.lastBotEntryAt.getTime()) / 3600_000
+    if (idleH < opts.learnIdleHours) {
+      return {
+        ok: false,
+        fa: `آخرین ورود ربات ${faNum(Math.max(0, idleH), 1)} ساعت پیش است — ${faNum(opts.learnIdleHours, 0)} ساعت فرصت به سیگنال قوی می‌دهیم`,
+      }
+    }
+  }
+  return { ok: true, fa: 'شرایط یادگیری فراهم است' }
+}
+
 /** چند فاکتور تکنیکال با جهت معامله همسو هستند؟ (۰ تا ۹) */
 function confluenceOf(f: SigFeatures, side: 'long' | 'short'): number {
   return DIRECTIONAL_FEATURES.reduce((acc, k) => {
@@ -157,18 +200,21 @@ async function recordSkip(s: { id: number }, reasonFa: string): Promise<void> {
   }
 }
 
-/** دروازهٔ استادی: null = عبور | رشتهٔ فارسی = دلیل رد */
-function expertGateFailReason(
+/** دروازهٔ استادی: null = عبور | رشتهٔ فارسی = دلیل رد
+ *  ignoreWeakFund (حالت یادگیری): بنیاد ضعیف با نصف ریسک قابل قبول است — دادهٔ آموزشی مغز؛
+ *  بقیهٔ فیلترها (اشباع RSI، نوسان مرده/خطرناک، فاندینگ ازدحام، MTF مخالف) همچنان کامل اعمال می‌شوند */
+export function expertGateFailReason(
   f: SigFeatures,
   side: 'long' | 'short',
   strategy: string,
   absScore: number,
   fundRow: FundamentalRow | null | undefined,
+  ignoreWeakFund = false,
 ): string | null {
   const contrarian = strategy === 'mean_reversion' || strategy === 'funding_anomaly'
 
-  // ۱) بنیاد ضعیف → فقط با امتیاز استثنایی
-  if (fundRow && fundRow.level === 'weak' && absScore < WEAK_FUND_SCORE_OVERRIDE) {
+  // ۱) بنیاد ضعیف → فقط با امتیاز استثنایی (در حالت یادگیری: بخشیده می‌شود — نصف ریسک جبران می‌کند)
+  if (!ignoreWeakFund && fundRow && fundRow.level === 'weak' && absScore < WEAK_FUND_SCORE_OVERRIDE) {
     return `بنیاد ضعیف (${fundRow.levelFa})`
   }
   // ۲) اشباع RSI خلاف جهت
@@ -298,6 +344,119 @@ export async function manageOpenPositions(): Promise<string[]> {
   return out
 }
 
+interface LearnCtx {
+  capacity: number
+  openBySide: Record<string, number>
+  expertGateOn: boolean
+  fundMap: Map<string, FundamentalRow>
+  manageFa: string
+  botCooldownHours: number
+}
+
+/**
+ * Restart v5.1 — گذر یادگیری: وقتی ورود اصلی اتفاق نیفتاد، ربات با بهترین سیگنال تازهٔ
+ * بالای آستانهٔ یادگیری و نصف ریسک وارد می‌شود (حداکثر یکی در هر چرخه).
+ * سیگنال‌های «watch» را هم می‌بیند (آستانهٔ اصلی فقط «open» را می‌دید و ربات در بازار رنج
+ * هرگز معامله نمی‌کرد و مغز گرسنهٔ داده می‌ماند).
+ * همهٔ دروازه‌های ایمن (هم‌جهت، قطع‌کن استراتژی، خنک‌شدن نماد، گیت پامپ، دروازهٔ استادی)
+ * همچنان اعمال می‌شوند — فقط آستانهٔ امتیاز مهربان‌تر است.
+ * خروجی: پیام فارسی برای کارت ربات | null = چیزی برای گفتن ندارد.
+ */
+async function runLearningPass(ctx: LearnCtx): Promise<string | null> {
+  const learn = await getLearningConfig()
+  const [openLearnCount, lastBotEntry] = await Promise.all([
+    db.fundPosition.count({ where: { status: 'open', reasonFa: { contains: LEARN_TAG } } }),
+    db.fundPosition.findFirst({
+      where: { reasonFa: { startsWith: BOT_PREFIX } },
+      orderBy: { openedAt: 'desc' },
+      select: { openedAt: true },
+    }),
+  ])
+  const verdict = learningEntryAllowed({
+    learnMode: learn.mode,
+    capacity: ctx.capacity,
+    openLearnCount,
+    learnMaxOpen: learn.maxOpen,
+    lastBotEntryAt: lastBotEntry?.openedAt ?? null,
+    learnIdleHours: learn.idleHours,
+  })
+  if (!verdict.ok) return null
+
+  const since = new Date(Date.now() - SIGNAL_MAX_AGE_H * 3600_000)
+  const rows = await db.signal.findMany({
+    where: { status: { in: ['open', 'watch'] }, createdAt: { gte: since } },
+    orderBy: { createdAt: 'desc' },
+    take: 60,
+  })
+  const cands = rows
+    .filter((s) => Math.abs(s.score) >= learn.minScore)
+    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+    .slice(0, 5)
+  if (!cands.length) {
+    return `یادگیری فعال اما سیگنال تازهٔ بالای امتیاز ${faNum(learn.minScore, 0)} نداریم — ${ctx.manageFa}`
+  }
+
+  for (const s of cands) {
+    try {
+      const dup = await db.fundPosition.findFirst({
+        where: { symbol: s.symbol, status: 'open' },
+        select: { id: true },
+      })
+      if (dup) continue
+      const side: 'long' | 'short' = s.side === 'short' ? 'short' : 'long'
+      const absScore = Math.abs(s.score)
+      const f = parseFeatures(s.featuresJson)
+      const fundRow = ctx.fundMap.get(s.symbol) ?? null
+      // دروازهٔ هم‌جهت + قطع‌کن استراتژی بد + خنک‌شدن نماد — مثل ورود اصلی
+      if (sameSideBlock(side, ctx.openBySide)) continue
+      const stratCloses = await db.fundPosition.findMany({
+        where: { status: 'closed', strategy: s.strategy },
+        orderBy: { closedAt: 'desc' },
+        take: STRAT_LOSS_STREAK,
+        select: { pnlUsdt: true, closedAt: true },
+      })
+      if (strategyCooldownBlock(stratCloses)) continue
+      const lastClosed = await db.fundPosition.findFirst({
+        where: { symbol: s.symbol, status: 'closed' },
+        orderBy: { closedAt: 'desc' },
+        select: { closedAt: true, pnlUsdt: true },
+      })
+      if (lastClosed?.closedAt) {
+        const wasLoss = (lastClosed.pnlUsdt ?? 0) <= 0
+        const cdH = wasLoss ? ctx.botCooldownHours : 1
+        if ((Date.now() - lastClosed.closedAt.getTime()) / 3600_000 < cdH) continue
+      }
+      // گیت پامپ + دروازهٔ استادی — سیگنال ضعیف حق ندارد زباله باشد
+      // (فقط شرط بنیاد قوی برای ورود یادگیری ملایم‌تر است — نصف ریسک جبران می‌کند)
+      if (s.strategy === 'momentum_breakout' && pumpGateFailReason(f)) continue
+      if (ctx.expertGateOn && expertGateFailReason(f, side, s.strategy, absScore, fundRow, true)) continue
+
+      const confluence = confluenceOf(f, side)
+      const levelFa = fundRow?.levelFa ?? 'بنیاد نامشخص'
+      const r = await openPosition({
+        symbol: s.symbol,
+        side,
+        signalId: s.id,
+        riskScale: learn.riskScale,
+        fundamentalLevel: fundRow?.level ?? null,
+        reasonFa: `${BOT_PREFIX} — ${LEARN_TAG} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)} از آستانهٔ یادگیری ${faNum(learn.minScore, 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، ${levelFa}، ریسک نصف برای دادهٔ یادگیری`,
+      })
+      try {
+        await db.signal.update({
+          where: { id: s.id },
+          data: { gateStatus: 'passed', gateReasonFa: 'ورود در حالت یادگیری — ریسک نصف‌شده برای دادهٔ آموزشی مغز' },
+        })
+      } catch {
+        /* غیرحیاتی */
+      }
+      return `یادگیری: ورود ${s.symbol} ${side === 'long' ? 'خرید' : 'فروش'} امتیاز ${faNum(Math.round(absScore), 0)} با نصف ریسک (مارجین ${faNum(r.marginUsdt, 2)} USDT) — ${ctx.manageFa}`
+    } catch {
+      continue
+    }
+  }
+  return `یادگیری فعال اما نامزدهای یادگیری دروازه‌های ایمن را رد کردند — ${ctx.manageFa}`
+}
+
 /** One full bot tick: manage open positions, then open new entries from fresh signals. */
 export async function runAutoTrader(): Promise<string> {
   const bot = await getBotConfig()
@@ -373,10 +532,6 @@ export async function runAutoTrader(): Promise<string> {
     }
   }
 
-  if (!candidates.length) {
-    return `سیگنال تازهٔ بالای امتیاز ${faNum(effMinScore, 0)} نداریم — ${manageFa}`
-  }
-
   // دروازهٔ استادی: نقشهٔ بنیادی نمادها (کش ۱۵ دقیقه‌ای — بدون تماس اضافه)
   const fut = await getFuturesConfig()
   let fundMap = new Map<string, FundamentalRow>()
@@ -387,6 +542,22 @@ export async function runAutoTrader(): Promise<string> {
     } catch {
       /* بدون نقشهٔ بنیادی، دروازهٔ فاندامنتال غیرفعال می‌ماند */
     }
+  }
+
+  const learnCtx: LearnCtx = {
+    capacity,
+    openBySide,
+    expertGateOn: fut.expertGate === 'on',
+    fundMap,
+    manageFa,
+    botCooldownHours: bot.cooldownHours,
+  }
+
+  if (!candidates.length) {
+    // Restart v5.1 — حالت یادگیری: بازار سیگنال قوی نمی‌سازد؟ ورود کوچک برای دادهٔ آموزشی
+    const learnFa = await runLearningPass(learnCtx)
+    if (learnFa) return learnFa
+    return `سیگنال تازهٔ بالای امتیاز ${faNum(effMinScore, 0)} نداریم — ${manageFa}`
   }
 
   let opened = 0
@@ -503,7 +674,7 @@ export async function runAutoTrader(): Promise<string> {
       }
 
       const confluence = confluenceOf(f, side)
-      const levelFa = fundRow ? fundRow.levelFa : 'نامشخص'
+      const levelFa = fundRow?.levelFa ?? 'بنیاد نامشخص'
       // جهت‌گیری با روند ۴ساعته — بخشی از «چرا ورود»
       const mtfFa =
         typeof f.mtf === 'number' && Number.isFinite(f.mtf)
@@ -517,7 +688,7 @@ export async function runAutoTrader(): Promise<string> {
         symbol: s.symbol,
         side,
         signalId: s.id,
-        reasonFa: `${BOT_PREFIX} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، بنیاد ${levelFa}${mtfFa ? `، ${mtfFa}` : ''}`,
+        reasonFa: `${BOT_PREFIX} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، ${levelFa}${mtfFa ? `، ${mtfFa}` : ''}`,
         fundamentalLevel: fundRow?.level ?? null,
       })
       opened++
@@ -525,6 +696,12 @@ export async function runAutoTrader(): Promise<string> {
     } catch {
       skipped++
     }
+  }
+
+  // Restart v5.1 — اگر ورود اصلی هیچ نتیجه‌ای نداشت، گذر یادگیری امتحان می‌شود
+  if (opened === 0) {
+    const learnFa = await runLearningPass(learnCtx)
+    if (learnFa) return learnFa
   }
 
   const parts = [`ورود: ${faNum(opened, 0)}`]

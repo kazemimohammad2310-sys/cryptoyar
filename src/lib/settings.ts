@@ -45,6 +45,13 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   futuresMaxLeverage: '20', // سقف مطلق اهرم
   futuresFixedLeverage: '20', // اهرم ثابت وقتی حالت fixed است
   botExpertGate: 'on', // دروازهٔ استادی: فیلترهای حرفه‌ای پیش از ورود
+  // Restart v5.1 — حالت یادگیری: ربات برای گرفتن دادهٔ یادگیری، وقتی سیگنال قوی نیست
+  // هر چند ساعت یک‌بار با بهترین سیگنال تازه و نصف ریسک وارد می‌شود تا مغز از واقعیت درس بگیرد
+  learnMode: 'on',
+  learnMinScore: '42', // آستانهٔ ورود یادگیری (سیگنال‌های watch هم شامل می‌شوند)
+  learnIdleHours: '4', // بین دو ورود یادگیری حداقل این‌قدر فاصله (فرصت به سیگنال قوی)
+  learnMaxOpen: '2', // حداکثر پوزیشن یادگیری همزمان
+  learnRiskScale: '0.5', // ضریب حجم ورود یادگیری (نصف ریسک)
   // bookkeeping
   selftestLastDate: '',
   pruneLastDate: '',
@@ -133,6 +140,30 @@ export async function getBotConfig() {
     }),
   ])
   return { enabled, minScore, maxOpen, cooldownHours } as const
+}
+
+/** Restart v5.1 — پیکربندی حالت یادگیری (ورود کوچک برای دادهٔ آموزشی مغز) */
+export async function getLearningConfig() {
+  const [mode, minScore, idleHours, maxOpen, riskScale] = await Promise.all([
+    getSetting('learnMode').then((v) => (v === 'off' ? 'off' : 'on')),
+    getSetting('learnMinScore').then((v) => {
+      const n = Number(v ?? 42)
+      return Number.isFinite(n) ? Math.min(80, Math.max(30, n)) : 42
+    }),
+    getSetting('learnIdleHours').then((v) => {
+      const n = Number(v ?? 4)
+      return Number.isFinite(n) ? Math.min(72, Math.max(1, n)) : 4
+    }),
+    getSetting('learnMaxOpen').then((v) => {
+      const n = Number(v ?? 2)
+      return Number.isFinite(n) ? Math.min(4, Math.max(1, Math.round(n))) : 2
+    }),
+    getSetting('learnRiskScale').then((v) => {
+      const n = Number(v ?? 0.5)
+      return Number.isFinite(n) ? Math.min(1, Math.max(0.25, n)) : 0.5
+    }),
+  ])
+  return { mode, minScore, idleHours, maxOpen, riskScale } as const
 }
 
 export async function getRiskConfig() {
