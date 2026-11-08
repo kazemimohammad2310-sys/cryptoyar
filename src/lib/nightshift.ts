@@ -285,14 +285,23 @@ async function jobDataPrune(): Promise<string> {
   const d365 = new Date(now - 365 * 24 * 3600_000)
   const d3 = new Date(now - 3 * 24 * 3600_000)
   const d30 = new Date(now - 30 * 24 * 3600_000)
-  const [c15, c1h, tick, fund, log] = await Promise.all([
+  const d7 = new Date(now - 7 * 24 * 3600_000)
+  const [c15, c1h, tick, fund, log, sigOld, sigExp, bsOld, ordOld] = await Promise.all([
     db.candle.deleteMany({ where: { interval: '15m', ts: { lt: d90 } } }),
     db.candle.deleteMany({ where: { interval: '1h', ts: { lt: d365 } } }),
     db.tickerSnapshot.deleteMany({ where: { ts: { lt: d3 } } }),
     db.fundingSnapshot.deleteMany({ where: { ts: { lt: d30 } } }),
     db.jobLog.deleteMany({ where: { startedAt: { lt: d30 } } }),
+    // بهینه‌سازی دیتابیس (2026-11-08): جدول‌هایی که تا دیروز هرگز پاک نمی‌شدند
+    db.signal.deleteMany({ where: { status: { not: 'open' }, createdAt: { lt: d30 } } }), // سیگنال‌های بسته/منقضی/ثبت‌شدهٔ قدیمی
+    db.signal.deleteMany({ where: { status: 'expired', createdAt: { lt: d7 } } }), // سیگنال منقضی خیلی سریع بی‌ارزش است
+    db.brainSample.deleteMany({ where: { evaluatedAt: { not: null }, createdAt: { lt: d90 } } }), // نمونه‌های آموزشی قدیمی (پنجرهٔ آموزش ۳۰۰۰ نمونهٔ آخر است)
+    db.fundOrder.deleteMany({ where: { createdAt: { lt: d90 } } }), // دفتر سفارش‌های قدیمی
   ])
-  return `پاک‌سازی: کندل ۱۵m=${c15.count}، ۱h=${c1h.count}، تیکر=${tick.count}، فاندینگ=${fund.count}، لاگ=${log.count}`
+  // نمودار سرمایه: فقط ۲۰۰۰ نقطهٔ اخیر نگه داشته می‌شود
+  const eqKeep = await db.equityPoint.findFirst({ orderBy: { id: 'desc' }, skip: 2000, select: { id: true } })
+  const eq = eqKeep ? await db.equityPoint.deleteMany({ where: { id: { lt: eqKeep.id } } }) : { count: 0 }
+  return `پاک‌سازی: کندل ۱۵m=${c15.count}، ۱h=${c1h.count}، تیکر=${tick.count}، فاندینگ=${fund.count}، لاگ=${log.count}، سیگنال‌کهنه=${sigOld.count + sigExp.count}، نمونهٔ مغز=${bsOld.count}، سفارش=${ordOld.count}، نمودار=${eq.count}`
 }
 
 async function jobBotTrade(): Promise<string> {

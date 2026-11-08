@@ -99,12 +99,13 @@ async function main(): Promise<void> {
     db.brainLesson.findMany({ orderBy: [{ kind: 'asc' }, { confidence: 'desc' }], take: 40 }),
   ])
 
-  const [healRaw, optRaw, verRaw, trustRaw, cloudRaw] = await Promise.all([
+  const [healRaw, optRaw, verRaw, trustRaw, cloudRaw, fail24] = await Promise.all([
     getSetting('healSnapshot'),
     getSetting('optimizeSnapshot'),
     getSetting('versionInfo'),
     getSetting('strategyTrust'),
     getSetting('cloudWatchdog'),
+    db.jobLog.count({ where: { ok: false, startedAt: { gte: new Date(Date.now() - 24 * 3600_000) } } }),
   ])
   const healSnap = healRaw ? (JSON.parse(healRaw) as { totalHeals?: number; recentActions?: string[]; sickNow?: string[] }) : null
   const optSnap = optRaw ? (JSON.parse(optRaw) as { sizeMB?: number | null; riskBefore?: number; riskAfter?: number; samples?: number; winRate?: number; action?: string }) : null
@@ -229,6 +230,13 @@ async function main(): Promise<void> {
             cloudWatch?.dispatchCount
               ? ` · نگهبان <b>${faNum(cloudWatch.dispatchCount, 0)}</b> بار چرخهٔ جاافتادهٔ کرون را دوباره روشن کرده${cloudWatch.lastActionFa ? ` — ${esc(cloudWatch.lastActionFa)}` : ''}`
               : ' · نگهبان ضربان فعال است'
+          }
+        </div>
+        <div class="reason" style="margin-top:6px">
+          <b>خطاهای ۲۴ ساعت اخیر:</b> ${
+            fail24 > 0
+              ? `<b class="warn">${faNum(fail24, 0)} خطا ثبت شده — خودترمیمی فعال است و خطاهای گذرا در همان چرخه یک تلاش دوم می‌گیرند</b>`
+              : '<b class="up">صفر — همهٔ وظایف سالم</b>'
           }
         </div>
         <div class="reason" style="margin-top:6px">
