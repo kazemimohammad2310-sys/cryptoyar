@@ -1,6 +1,6 @@
 // ─── CryptoYar Free — static dashboard generator (GitHub Pages) ───
 // Reads the current DB state and writes a self-contained RTL HTML dashboard
-// (7 tabs, mobile-first: داشبورد/رادار/ارزها/صندوق/مغز/شیفت‌شب/راهنما) + data.json into ./site (deployed by the workflow).
+// (8 tabs, mobile-first: داشبورد/رادار/ارزها/صندوق/مغز/دفترچهٔ یادگیری/شیفت‌شب/راهنما) + data.json into ./site (deployed by the workflow).
 
 import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'fs'
 import { execFile } from 'child_process'
@@ -10,6 +10,7 @@ import { getSetting, getBrainWeights, getBotConfig, getFuturesConfig, type Featu
 import { currentEquity, liquidationPrice, roeOf } from '@/lib/fund'
 import { runSelfTest, computeFeatures, STRATEGY_FA as STRATEGY_FA_LOCAL } from '@/lib/brain'
 import { BOT_PREFIX } from '@/lib/autotrader'
+import { JOURNAL_KIND_FA, noteShareText, journalExportText } from '@/lib/journal'
 import { getKlines } from '@/lib/fetchers/binance'
 import { computeFundamentals, faBigUsd, type FundamentalRow } from '@/lib/fundamentals'
 import { faNum, faPct, faPrice } from '@/lib/fa'
@@ -613,6 +614,7 @@ async function main(): Promise<void> {
         <b>ارزها:</b> برای هر یک از ۵۰ ارزِ تحت پوشش، امتیاز و وضعیت بنیادی (رتبه بازار، نقدشوندگی، نوسان، روند، فاندینگ) به‌همراه جزییات کامل: قیمت، حجم، ارزش بازار، بازده ۷ و ۳۰ روزه و دلایل فارسی — روی هر ردیف بزنید تا باز شود.<br>
         <b>صندوق شبیه‌ساز (فیوچرز):</b> پوزیشن‌های خرید/فروش با اهرم متناسب، مارجین، ROE و قیمت لیکوییدیشن — مثل حساب فیوچرز آزمایشی؛ سقف اهرم از تب تنظیمات اپ قابل تغییر است.<br>
         <b>مغز یادگیرنده:</b> از نتیجهٔ سیگنال‌ها یاد می‌گیرد و وزن‌ها را خودکار تنظیم می‌کند.<br>
+        <b>دفترچهٔ یادگیری:</b> یادداشت‌های خودکار ربات به سبک تریدر حرفه‌ای — فرضیهٔ هر ورود، نتیجهٔ هر خروج با بازخوانی، درس‌های کشف‌شده از داده و یادداشت‌های انضباطی؛ روی هر یادداشت دکمهٔ کپی و اشتراک‌گذاری (تلگرام/واتساپ/ایکس) هست و کل دفترچه قابل دانلود است.<br>
         <b>شیفت‌شب:</b> موتور زمان‌بندی که ۲۴ ساعته بدون شما کار می‌کند.<br>
         <b>لایهٔ خودکار:</b> ربات معامله‌گر با دروازهٔ استادی (بنیاد + تکنیکال ۹ فاکتور) خودش معامله فیوچرز با اهرم متناسب باز می‌کند، خودش را بروزرسانی می‌کند، خطاها را ترمیم می‌کند و ریسک را با عملکردش تنظیم می‌کند.
       </div>
@@ -630,6 +632,79 @@ async function main(): Promise<void> {
       <h2>هشدار مهم</h2>
       <div class="reason">همهٔ اعداد این صفحه آموزشی و شبیه‌سازی‌شده‌اند و هیچ توصیهٔ سرمایه‌گذاری‌ای نیستند. داده‌ها از Binance و CoinMarketCap تأمین می‌شود.</div>
     </div>`
+
+  // ─── دفترچهٔ یادگیری: یادداشت‌های حرفه‌ای ربات (تب هشتم) ───
+  const journalNotes = await db.journalNote.findMany({ orderBy: { createdAt: 'desc' }, take: 40 })
+  const journalShareRows = journalNotes.map((n) => ({
+    id: n.id,
+    txt: noteShareText({ ...n, strategy: n.strategy ? (STRATEGY_FA_LOCAL[n.strategy] ?? n.strategy) : n.strategy }, FA_TIME.format(n.createdAt)),
+  }))
+  const journalExportAll = journalExportText(
+    journalNotes
+      .slice()
+      .reverse()
+      .map((n) => ({ kind: n.kind, titleFa: n.titleFa, bodyFa: n.bodyFa, tags: n.tags, symbol: n.symbol, strategy: n.strategy, createdAt: n.createdAt, dateFa: FA_TIME.format(n.createdAt) })),
+    FA_TIME.format(new Date()),
+  )
+
+  const JOURNAL_KIND_STYLE: Record<string, { bg: string; fg: string }> = {
+    hypothesis: { bg: 'rgba(240,185,11,.14)', fg: '#f0b90b' },
+    result: { bg: 'rgba(14,203,129,.14)', fg: '#0ecb81' },
+    lesson: { bg: 'rgba(184,135,255,.14)', fg: '#b787ff' },
+    shield: { bg: 'rgba(246,70,93,.14)', fg: '#f6465d' },
+    waiting: { bg: 'rgba(132,142,156,.16)', fg: '#848e9c' },
+  }
+  const jcard = (n: (typeof journalNotes)[number]): string => {
+    const st = JOURNAL_KIND_STYLE[n.kind] ?? JOURNAL_KIND_STYLE.waiting
+    const kindFa = JOURNAL_KIND_FA[n.kind as keyof typeof JOURNAL_KIND_FA] ?? n.kind
+    const badgeStyle =
+      n.kind === 'result'
+        ? n.titleFa.includes('زیان')
+          ? 'background:rgba(246,70,93,.14);color:#f6465d'
+          : 'background:rgba(14,203,129,.14);color:#0ecb81'
+        : `background:${st.bg};color:${st.fg}`
+    const tagPills = n.tags
+      ? n.tags
+          .split(',')
+          .filter(Boolean)
+          .map((t) => `<span class="pill">${esc(t)}</span>`)
+          .join(' ')
+      : ''
+    return `<div class="card" style="padding:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div style="min-width:0">
+          <span class="badge" style="${badgeStyle}">${esc(kindFa)}</span>
+          <b style="font-size:12px;margin-inline-start:6px">${esc(n.titleFa)}</b>
+        </div>
+        <span class="sub" style="flex-shrink:0">${FA_TIME.format(n.createdAt)}</span>
+      </div>
+      <div class="reason" style="white-space:pre-wrap;margin-top:7px">${esc(n.bodyFa)}</div>
+      ${tagPills ? `<div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">${tagPills}</div>` : ''}
+      <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="jbtn" onclick="cyJCopy(${n.id},this)">کپی متن</button>
+        <button type="button" class="jbtn" onclick="cyJShare('tg',${n.id})">تلگرام</button>
+        <button type="button" class="jbtn" onclick="cyJShare('wa',${n.id})">واتساپ</button>
+        <button type="button" class="jbtn" onclick="cyJShare('tw',${n.id})">ایکس</button>
+        <button type="button" class="jbtn" onclick="cyJShare('native',${n.id})">اشتراک</button>
+      </div>
+    </div>`
+  }
+
+  const tabJournal = `
+    <div class="card">
+      <h2>دفترچهٔ یادگیری — ربات مثل تریدر حرفه‌ای هر تجربه را ثبت می‌کند</h2>
+      <div class="reason">در لحظه‌های کلیدی ربات یادداشت می‌نویسد: <b>فرضیهٔ ورود</b> (چرا وارد شدم و با چه ریسکی)، <b>نتیجهٔ خروج</b> (چه شد و فرضیه تأیید شد یا رد)، <b>درس‌های کشف‌شده از دادهٔ واقعی</b>، <b>یادداشت‌های انضباطی سپرها</b> (وقتی خودش را متوقف می‌کند) و <b>صبر آگاهانه</b> (وقتی شرایط نیست، بیرون‌ماندن خودش یک تصمیم است). هر یادداشت فقط از دادهٔ واقعی معاملات شبیه‌ساز ساخته می‌شود؛ هیچ‌چیز ساختگی نیست. هر یادداشت را می‌توانید کپی کنید، در پیام‌رسان‌ها بفرستید یا کل دفترچه را دانلود کنید — هم شما یاد می‌گیرید، هم این متن همان چیزی است که مغز ربات در تصمیم‌های بعدی اعمال می‌کند.</div>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="jbtn" onclick="cyJCopyAll(this)">کپی کل دفترچه</button>
+        <button type="button" class="jbtn" onclick="cyJDownload()">دانلود فایل متنی</button>
+      </div>
+      ${journalNotes.length ? `<div class="sub" style="margin-top:7px">${faNum(journalNotes.length, 0)} یادداشتِ آخر نمایش داده می‌شود — ترتیب: تازه‌ترین اول.</div>` : ''}
+    </div>
+    ${
+      journalNotes.length
+        ? journalNotes.map((n) => jcard(n)).join('')
+        : '<div class="card"><div class="reason">دفترچه با اولین معاملهٔ ربات پر می‌شود — یادداشت فرضیه در لحظهٔ باز کردن پوزیشن و یادداشت نتیجه در لحظهٔ بستن آن نوشته می‌شود؛ درس‌های داده‌ای هم هر بار که مغز الگویی را کشف کند همین‌جا ثبت می‌شوند.</div></div>'
+    }`
 
   const html = `<!doctype html>
 <html lang="fa" dir="rtl">
@@ -692,6 +767,8 @@ async function main(): Promise<void> {
   .cmet span { display:block; color:#848e9c; font-size:10px; margin-bottom:2px; }
   .cmet b { font-size:11px; }
   .reason { font-size:11px; color:#848e9c; line-height:1.8; }
+  .jbtn { background:#1e242c; color:#eaecef; border:1px solid #2a3139; border-radius:8px; padding:5px 11px; font-family:inherit; font-size:11px; cursor:pointer; }
+  .jbtn:active { background:#262d36; }
   svg.spark { width:100%; height:60px; }
   .bar { height:6px; background:#1e242c; border-radius:99px; overflow:hidden; }
   .bar i { display:block; height:100%; background:#f0b90b; }
@@ -711,6 +788,7 @@ async function main(): Promise<void> {
     <button type="button" class="tabbtn" data-go="coins">ارزها</button>
     <button type="button" class="tabbtn" data-go="fund">صندوق شبیه‌ساز</button>
     <button type="button" class="tabbtn" data-go="brain">مغز یادگیرنده</button>
+    <button type="button" class="tabbtn" data-go="journal">دفترچهٔ یادگیری</button>
     <button type="button" class="tabbtn" data-go="nightshift">شیفت‌شب</button>
     <button type="button" class="tabbtn" data-go="help">راهنما</button>
   </nav>
@@ -720,6 +798,7 @@ async function main(): Promise<void> {
   <section data-tab="coins" hidden>${tabCoins}</section>
   <section data-tab="fund" hidden>${tabFund}</section>
   <section data-tab="brain" hidden>${tabBrain}</section>
+  <section data-tab="journal" hidden>${tabJournal}</section>
   <section data-tab="nightshift" hidden>${tabNightshift}</section>
   <section data-tab="help" hidden>${tabHelp}</section>
 
@@ -730,7 +809,7 @@ async function main(): Promise<void> {
 <script>
 (function(){
   var btns=document.querySelectorAll('.tabbtn'),secs=document.querySelectorAll('section[data-tab]');
-  var VALID=['dashboard','radar','coins','fund','brain','nightshift','help'];
+  var VALID=['dashboard','radar','coins','fund','brain','journal','nightshift','help'];
   function show(t,skipHash){
     for(var i=0;i<btns.length;i++){btns[i].classList.toggle('on',btns[i].getAttribute('data-go')===t)}
     for(var j=0;j<secs.length;j++){secs[j].hidden=secs[j].getAttribute('data-tab')!==t}
@@ -745,6 +824,19 @@ async function main(): Promise<void> {
   show(init,true);
   window.addEventListener('hashchange',function(){var nh=(location.hash||'').replace('#','');if(VALID.indexOf(nh)>=0)show(nh,true)});
   if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js')}catch(e){}}
+})();
+</script>
+<script>
+var CY_JOURNAL=${JSON.stringify(journalShareRows).replace(/</g, '\\u003c')};
+var CY_JOURNAL_ALL=${JSON.stringify(journalExportAll).replace(/</g, '\\u003c')};
+(function(){
+  function txt(id){for(var i=0;i<CY_JOURNAL.length;i++){if(CY_JOURNAL[i].id===id)return CY_JOURNAL[i].txt}return ''}
+  function fallback(t){var ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(ta)}
+  function copy(t,btn){if(!t)return;var done=function(){if(btn){var o=btn.textContent;btn.textContent='کپی شد ✓';setTimeout(function(){btn.textContent=o},1600)}};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,function(){fallback(t);done()})}else{fallback(t);done()}}
+  window.cyJCopy=function(id,btn){copy(txt(id),btn)};
+  window.cyJCopyAll=function(btn){copy(CY_JOURNAL_ALL,btn)};
+  window.cyJDownload=function(){try{var b=new Blob([CY_JOURNAL_ALL],{type:'text/plain;charset=utf-8'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='cryptoyar-learning-journal.txt';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},3000)}catch(e){}};
+  window.cyJShare=function(net,id){var t=txt(id);if(!t)return;var u=location.href.split('#')[0];var en=encodeURIComponent(t+'\n'+u);if(net==='tg'){window.open('https://t.me/share/url?url='+encodeURIComponent(u)+'&text='+encodeURIComponent(t),'_blank')}else if(net==='wa'){window.open('https://wa.me/?text='+en,'_blank')}else if(net==='tw'){window.open('https://twitter.com/intent/tweet?text='+en,'_blank')}else if(net==='native'&&navigator.share){navigator.share({text:t,url:u}).catch(function(){})}};
 })();
 </script>
 </body>
@@ -846,6 +938,7 @@ self.addEventListener('fetch',function(e){
           : null,
         brain: { total: sampleTotal, evaluated: sampleEvaluated, wins: sampleWins },
         bot: { enabled: bot.enabled, minScore: bot.minScore, maxOpen: bot.maxOpen, openPositions: botOpenCount, totalPositions: botTotalCount },
+        journal: journalNotes.slice(0, 20).map((n) => ({ kind: n.kind, titleFa: n.titleFa, bodyFa: n.bodyFa, tags: n.tags, symbol: n.symbol, createdAt: n.createdAt.toISOString() })),
       },
       null,
       2,
@@ -853,7 +946,7 @@ self.addEventListener('fetch',function(e){
     'utf8',
   )
   console.log(
-    `REPORT DONE — site/index.html (${(html.length / 1024).toFixed(1)}KB) tabs=7, coins=${fundSnap?.rows.length ?? 0}, positions=${positions.length}, signals=${signals.length}, brainEval=${sampleEvaluated}/${sampleTotal}`,
+    `REPORT DONE — site/index.html (${(html.length / 1024).toFixed(1)}KB) tabs=8, coins=${fundSnap?.rows.length ?? 0}, positions=${positions.length}, signals=${signals.length}, brainEval=${sampleEvaluated}/${sampleTotal}, journal=${journalNotes.length}`,
   )
 
   await commitAndPushDb()

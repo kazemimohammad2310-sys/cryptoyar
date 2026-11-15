@@ -176,6 +176,26 @@ model JobLog {
   @@index([job, startedAt])
 }
 
+// ─── دفترچهٔ یادگیری: یادداشت‌های خودکار ربات به سبک دفترچهٔ تریدر حرفه‌ای ───
+// kind: hypothesis (فرضیهٔ ورود) | result (نتیجهٔ خروج) | lesson (درس داده) |
+//       shield (انضباط/سپرها) | waiting (صبر آگاهانه)
+// refKey: کلید یکتا برای جلوگیری از تکرار یادداشت در پنجرهٔ زمانی مشخص
+model JournalNote {
+  id         Int      @id @default(autoincrement())
+  kind       String // hypothesis | result | lesson | shield | waiting
+  titleFa    String
+  bodyFa     String // متن کامل یادداشت حرفه‌ای (فرضیه/نتیجه/درس/اقدام بعدی)
+  tags       String   @default("") // برچسب‌ها جدا با ,
+  symbol     String?
+  strategy   String?
+  positionId Int?
+  refKey     String? // برای عدم تکرار (مثلاً lesson:long_rsi_hot)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([kind, createdAt])
+}
+
 model Setting {
   key   String @id
   value String

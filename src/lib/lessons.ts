@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import type { PrismaPromise } from '@prisma/client'
 import { faNum } from '@/lib/fa'
+import { addJournalNote, journalFromLesson } from '@/lib/journal'
 
 // ─── موتور درس‌های آموخته (lessons) ───
 // مغز علاوه بر وزن‌ها، «الگوهای شرطی» را هم از نتایج واقعی کشف می‌کند:
@@ -170,6 +171,8 @@ export async function mineLessons(): Promise<string[]> {
 
   const overall = parsed.filter((p) => p.win).length / parsed.length
   const changed: string[] = []
+  // دفترچهٔ یادگیری — درس‌های تازه/بازنگری‌شده برای ثبت در دفترچه (بعد از تراکنش نوشته می‌شوند)
+  const journalCands: { key: string; titleFa: string; statsFa: string; delta: number; confidence: number; deactivated?: boolean }[] = []
   // نوشتن‌های لازم در یک تراکنش — چرخِ دیتابیس چند برابر سبک‌تر می‌شود
   const writes: PrismaPromise<unknown>[] = []
 
@@ -203,6 +206,7 @@ export async function mineLessons(): Promise<string[]> {
       }
       if (!existing || !existing.active || Math.abs((existing.delta ?? 0) - delta) > 0.5) {
         changed.push(`${p.titleFa} (${dir})`)
+        journalCands.push({ key: p.key, titleFa: p.titleFa, statsFa, delta, confidence })
       }
     } else {
       // شواهد کافی نیست — درس کهنه نباید بی‌پایه اثر بگذارد
@@ -210,10 +214,35 @@ export async function mineLessons(): Promise<string[]> {
       if (existing?.active) {
         writes.push(db.brainLesson.update({ where: { key: p.key }, data: { active: false, delta: 0 } }))
         changed.push(`بازنگری «${p.titleFa}» — شواهد کافی نیست، غیرفعال شد`)
+        journalCands.push({ key: p.key, titleFa: p.titleFa, statsFa, delta: 0, confidence: 0, deactivated: true })
       }
     }
   }
   if (writes.length) await db.$transaction(writes)
+  // دفترچهٔ یادگیری — ثبت یادداشت درس/بازنگری (غیرحیاتی؛ ضدتکرار داخل خود journal.ts است)
+  for (const j of journalCands) {
+    try {
+      if (j.deactivated) {
+        await addJournalNote({
+          kind: 'lesson',
+          titleFa: `بازنگری درس: ${j.titleFa}`,
+          bodyFa: [
+            'شواهد کافی برای پایداری این الگو وجود ندارد و درس غیرفعال شد تا دادهٔ کهنه اثر نگذارد.',
+            `آمار آخرین بازنگری: ${j.statsFa}`,
+            'درس حرفه‌ای: قاعده‌ای که پشتوانه‌اش کهنه شده، خطرناک‌تر از بی‌قاعدگی است — بازنگری بخشی از انضباط است.',
+            'اقدام بعدی: با جمع‌شدن نمونه‌های تازه، این الگو دوباره سنجیده می‌شود.',
+          ].join('\n'),
+          tags: ['درس', 'بازنگری'],
+          refKey: `lesson-off:${j.key}`,
+          dedupeHours: 12,
+        })
+      } else {
+        await journalFromLesson({ key: j.key, titleFa: j.titleFa, statsFa: j.statsFa, bodyFa: '', delta: j.delta, confidence: j.confidence })
+      }
+    } catch {
+      /* دفترچه حیاتی نیست */
+    }
+  }
   return changed
 }
 

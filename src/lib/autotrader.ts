@@ -4,6 +4,10 @@ import { openPosition, closePosition, latestPrice, isCircuitBreakerTripped } fro
 import { computeFundamentals, type FundamentalRow } from '@/lib/fundamentals'
 import { STRATEGY_FA } from '@/lib/brain'
 import { faNum } from '@/lib/fa'
+import { journalFromOpen, journalShieldNote, journalWaitingNote, BOT_PREFIX, LEARN_TAG } from '@/lib/journal'
+
+// برچسب‌های استاندارد ربات — تعریف اصلی در journal.ts است (اینجا برای سازگاری صادر می‌شود)
+export { BOT_PREFIX, LEARN_TAG } from '@/lib/journal'
 
 // ─── Auto-Trader Bot (paper) — حالت استادی ───
 // Converts the strongest fresh radar signals into paper positions automatically,
@@ -28,7 +32,6 @@ import { faNum } from '@/lib/fa'
 //       فقط شرط «بنیاد قوی» در ورود یادگیری ملایم‌تر است (نصف ریسک جبران می‌کند)
 //   + شمارش همگرایی ۹ فاکتور تکنیکال برای ثبت در دلیل معامله و اهرم متناسب با بنیاد
 
-export const BOT_PREFIX = 'ربات خودکار'
 const SIGNAL_MAX_AGE_H = 8 // never chase signals older than this
 const CANDIDATES_PER_RUN = 10
 const BREAKEVEN_AT_PCT = 1.0 // move stop to entry at +1%
@@ -63,7 +66,7 @@ export const TRUSTED_DISCOUNT = 2 // تخفیف امتیاز برای استرا
 export const TRUST_SCORE_FLOOR = 60 // آستانهٔ ورود هرگز زیر این نمی‌رود
 
 // Restart v5.1 — حالت یادگیری: مغز برای درس گرفتن به معاملهٔ واقعی نیاز دارد
-export const LEARN_TAG = 'معاملهٔ یادگیری' // برچسب در reasonFa پوزیشن‌های یادگیری
+// (برچسب LEARN_TAG در journal.ts تعریف شده و بالای همین فایل دوباره‌صادر می‌شود)
 export const LEARN_MIN_SCORE_DEFAULT = 42 // آستانهٔ امتیاز یادگیری (سیگنال‌های watch را هم می‌بیند)
 export const LEARN_IDLE_H_DEFAULT = 4 // بین دو ورود یادگیری حداقل این‌قدر فاصله (ساعت)
 export const LEARN_MAX_OPEN_DEFAULT = 2 // حداکثر پوزیشن یادگیری همزمان
@@ -449,6 +452,29 @@ async function runLearningPass(ctx: LearnCtx): Promise<string | null> {
       } catch {
         /* غیرحیاتی */
       }
+      // دفترچهٔ یادگیری — یادداشت فرضیهٔ ورودِ یادگیری با نصف ریسک (غیرحیاتی)
+      try {
+        await journalFromOpen({
+          positionId: r.positionId,
+          symbol: s.symbol,
+          side,
+          strategy: s.strategy,
+          strategyFa: STRATEGY_FA[s.strategy] ?? s.strategy,
+          absScore,
+          minScoreFa: `از آستانهٔ یادگیری ${faNum(learn.minScore, 0)}`,
+          confluence,
+          levelFa,
+          leverage: r.leverage,
+          marginUsdt: r.marginUsdt,
+          entry: r.entry,
+          stop: r.stop,
+          target: r.target,
+          isLearning: true,
+          mtfFa: null,
+        })
+      } catch {
+        /* دفترچه حیاتی نیست */
+      }
       return `یادگیری: ورود ${s.symbol} ${side === 'long' ? 'خرید' : 'فروش'} امتیاز ${faNum(Math.round(absScore), 0)} با نصف ریسک (مارجین ${faNum(r.marginUsdt, 2)} USDT) — ${ctx.manageFa}`
     } catch {
       continue
@@ -471,6 +497,21 @@ export async function runAutoTrader(): Promise<string> {
   const risk = await getRiskConfig()
   const cb = await isCircuitBreakerTripped()
   if (cb.tripped) {
+    // دفترچهٔ یادگیری — یادداشت انضباطی قطع‌کن مدار روزانه (یک‌بار در روز)
+    try {
+      await journalShieldNote(
+        `shield:cb:${new Date().toISOString().slice(0, 10)}`,
+        'قطع‌کن مدار روزانه فعال شد — ورود جدید تا فردا ممنوع',
+        [
+          `عامل توقف: افت روزانهٔ صندوق به ${faNum(cb.drawdownPct, 1)}٪ رسیده است.`,
+          'درس حرفه‌ای: بعد از یک روز سیاه، اولین قانون «نابود نکردن باقیماندهٔ سرمایه» است — تریدر حرفه‌ای با بازار نجنگید؛ امروز را تعطیل کرد.',
+          'اقدام بعدی: فقط مدیریت پوزیشن‌های باز (حد ضرر/تریلینگ) ادامه دارد؛ ورود جدید با شروع روز معاملاتی بعدی باز می‌شود.',
+        ],
+        ['انضباط', 'مدیریت ریسک', 'قطع‌کن مدار'],
+      )
+    } catch {
+      /* دفترچه حیاتی نیست */
+    }
     return `مدار روزانه قطع شده (افت ${faNum(cb.drawdownPct, 1)}٪) — ورود جدید ممنوع — ${manageFa}`
   }
 
@@ -483,6 +524,23 @@ export async function runAutoTrader(): Promise<string> {
   })
   const lossStreak = lastBotCloses.length === 3 && lastBotCloses.every((p) => (p.pnlUsdt ?? 0) <= 0)
   const effMinScore = lossStreak ? bot.minScore + 8 : bot.minScore
+  if (lossStreak) {
+    // دفترچهٔ یادگیری — یادداشت انضباطی ترمز ضرر پیاپی (یک‌بار در روز)
+    try {
+      await journalShieldNote(
+        `shield:streak:${new Date().toISOString().slice(0, 10)}`,
+        'ترمز ضرر پیاپی فعال — آستانهٔ ورود ۸ امتیاز سخت‌گیرانه‌تر شد',
+        [
+          `شواهد: ۳ معاملهٔ آخر ربات همه زیان‌ده بودند (${lastBotCloses.map((p) => `${faNum(p.pnlUsdt ?? 0, 2)} USDT`).join('، ')}).`,
+          'درس حرفه‌ای: رشتهٔ ضررها معمولاً یعنی بازار در رژیمی است که به قواعد فعلی جواب نمی‌دهد — واکنش حرفه‌ای، سخت‌گیری بیشتر است نه ورودهای بیشتر.',
+          'اقدام بعدی: فقط سیگنال‌های کیفیت بالاتر (امتیاز +۸) پذیرفته می‌شوند تا اولین سود رشتهٔ ضرر را بشکند.',
+        ],
+        ['انضباط', 'صبر', 'مدیریت ریسک'],
+      )
+    } catch {
+      /* دفترچه حیاتی نیست */
+    }
+  }
 
   // Restart v5: نقشهٔ پوزیشن‌های باز به تفکیک جهت + اعتماد مغز به هر استراتژی
   const openBySide: Record<string, number> = {}
@@ -557,6 +615,12 @@ export async function runAutoTrader(): Promise<string> {
     // Restart v5.1 — حالت یادگیری: بازار سیگنال قوی نمی‌سازد؟ ورود کوچک برای دادهٔ آموزشی
     const learnFa = await runLearningPass(learnCtx)
     if (learnFa) return learnFa
+    // دفترچهٔ یادگیری — یادداشت صبر آگاهانه (یک‌بار در روز)
+    try {
+      await journalWaitingNote(effMinScore, manageFa)
+    } catch {
+      /* دفترچه حیاتی نیست */
+    }
     return `سیگنال تازهٔ بالای امتیاز ${faNum(effMinScore, 0)} نداریم — ${manageFa}`
   }
 
@@ -603,6 +667,21 @@ export async function runAutoTrader(): Promise<string> {
       if (stratFail) {
         gated++
         skipFa.push(`${s.symbol}: ${stratFail}`)
+        // دفترچهٔ یادگیری — یادداشت انضباطی توقف موقت استراتژی (یک‌بار در هر رخداد)
+        try {
+          await journalShieldNote(
+            `shield:strat:${s.strategy}:${stratCloses[0]?.closedAt?.toISOString() ?? 'na'}`,
+            `توقف موقت استراتژی «${STRATEGY_FA[s.strategy] ?? s.strategy}» — ۳ ضرر پیاپی`,
+            [
+              `عامل توقف: ۳ معاملهٔ آخر این استراتژی زیان‌ده بوده و آخرینِ آن‌ها کمتر از ۲۴ ساعت پیش بسته شده است (${stratCloses.map((c) => `${faNum(c.pnlUsdt ?? 0, 2)} USDT`).join('، ')}).`,
+              'درس حرفه‌ای: وقتی یک ابزار در رژیم فعلی بازار جواب نمی‌دهد، کنارکشیدن موقت ضربهٔ بعدی را جلوگیری می‌کند — پافشاری روی استراتژی شکست‌خورده، همان اشتباه معروف «انتقام‌گیری از بازار» است.',
+              'اقدام بعدی: تا پایان مهلت ۲۴ ساعته ورود این استراتژی ممنوع است؛ پس از آن با شواهد تازهٔ بازار دوباره ارزیابی می‌شود.',
+            ],
+            ['انضباط', 'توقف استراتژی'],
+          )
+        } catch {
+          /* دفترچه حیاتی نیست */
+        }
         await recordSkip(s, `${stratFail} — درس مغز: استراتژی در رژیم فعلی بازار جواب نمی‌دهد`)
         continue
       }
@@ -691,6 +770,29 @@ export async function runAutoTrader(): Promise<string> {
         reasonFa: `${BOT_PREFIX} — ${STRATEGY_FA[s.strategy] ?? s.strategy} — امتیاز ${faNum(Math.round(absScore), 0)}، همگرایی ${faNum(confluence, 0)}/${faNum(9, 0)} فاکتور، ${levelFa}${mtfFa ? `، ${mtfFa}` : ''}`,
         fundamentalLevel: fundRow?.level ?? null,
       })
+      // دفترچهٔ یادگیری — یادداشت فرضیهٔ ورود (غیرحیاتی)
+      try {
+        await journalFromOpen({
+          positionId: r.positionId,
+          symbol: s.symbol,
+          side,
+          strategy: s.strategy,
+          strategyFa: STRATEGY_FA[s.strategy] ?? s.strategy,
+          absScore,
+          minScoreFa: `از آستانهٔ ${faNum(trustAdj.min, 0)}`,
+          confluence,
+          levelFa,
+          leverage: r.leverage,
+          marginUsdt: r.marginUsdt,
+          entry: r.entry,
+          stop: r.stop,
+          target: r.target,
+          isLearning: false,
+          mtfFa,
+        })
+      } catch {
+        /* دفترچه هرگز نباید جریان معامله را بشکند */
+      }
       opened++
       openedFa.push(`${s.symbol} ${side === 'long' ? 'خرید' : 'فروش'} ×${faNum(r.leverage, r.leverage % 1 === 0 ? 0 : 1)}`)
     } catch {

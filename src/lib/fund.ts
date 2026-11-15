@@ -5,6 +5,7 @@ import { atr } from '@/lib/indicators'
 import { STRATEGY_FA } from '@/lib/brain'
 import { faNum } from '@/lib/fa'
 import type { FundamentalLevel } from '@/lib/fundamentals'
+import { journalFromClose, isLearnPosition } from '@/lib/journal'
 
 // ─── Paper Fund (§6/§7) — all risk rules enforced SERVER-SIDE ───
 // Corrections applied: explicit short-PnL accounting, hourly equity snapshots,
@@ -234,6 +235,26 @@ export async function closePosition(id: number, reasonFa: string, closePrice?: n
   })
   const eq = await currentEquity()
   await db.equityPoint.create({ data: { equityUsdt: eq } })
+  // دفترچهٔ یادگیری — یادداشت نتیجهٔ خروج به سبک تریدر حرفه‌ای (غیرحیاتی؛ هرگز بستن را نمی‌شکند)
+  try {
+    await journalFromClose({
+      positionId: pos.id,
+      symbol: pos.symbol,
+      side: pos.side,
+      strategy: pos.strategy,
+      strategyFa: STRATEGY_FA[pos.strategy] ?? (pos.strategy === 'manual' ? 'دستی' : pos.strategy),
+      reasonFa,
+      pnlUsdt,
+      pnlPct,
+      durationH: durH,
+      entryPrice: pos.entryPrice,
+      closePrice: price,
+      stopLoss: pos.stopLoss,
+      wasLearning: isLearnPosition(pos.reasonFa),
+    })
+  } catch {
+    /* دفترچه حیاتی نیست */
+  }
   return { pnlUsdt, pnlPct }
 }
 
