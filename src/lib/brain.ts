@@ -515,10 +515,14 @@ export async function trainBrain(): Promise<{ trained: boolean; detail: string; 
     // Laplace-smoothed agreement rate (0.5 = coin flip)
     const rate = (h.agreeW + 1) / (h.totalW + 2)
     const before = weights[k]
+    // گام تطبیقی: شواهد قطعی (نرخ ≥ ۰٫۵۸ یا ≤ ۰٫۴۲) گام بزرگ‌تر می‌گیرند تا مغز
+    // سریع‌تر از رژیم اشتباه بیرون بیاید؛ در ناحیهٔ خاکستری گام کوچکِ محافظه‌کارانه.
+    const upCap = rate >= 0.58 ? 0.1 : 0.06
+    const downCap = rate <= 0.42 ? 0.08 : 0.05
     if (rate > 0.53) {
-      weights[k] = Math.min(DEFAULT_MAX[k] ?? 40, before * (1 + Math.min(0.06, (rate - 0.5) * 0.5)))
+      weights[k] = Math.min(DEFAULT_MAX[k] ?? 40, before * (1 + Math.min(upCap, (rate - 0.5) * 0.5)))
     } else if (rate < 0.47) {
-      weights[k] = Math.max(1, before * (1 - Math.min(0.05, (0.5 - rate) * 0.5)))
+      weights[k] = Math.max(1, before * (1 - Math.min(downCap, (0.5 - rate) * 0.5)))
     }
     if (Math.abs(weights[k] - before) > 0.001) {
       changes.push(
@@ -528,14 +532,16 @@ export async function trainBrain(): Promise<{ trained: boolean; detail: string; 
   }
   await setSetting('brainWeights', JSON.stringify(weights))
 
-  // strategy trust v2: Laplace-smoothed win rate → multiplier in [0.75, 1.2]
-  // (winRate 0.5 → ×1.00, 0.3 → ×0.90, 0.7 → ×1.10) — applied by radar thresholds
+  // strategy trust v2: Laplace-smoothed win rate → multiplier in [0.65, 1.2]
+  // نگاشت متقارن: wr=۰٫۵ → ×۱٫۰۰، wr=۰٫۳ → ×۰٫۸۰، wr=۰٫۲۸ → ×۰٫۷۸، wr=۰٫۷ → ×۱٫۲۰
+  // (نگاشت قدیمی 0.75+0.5wr حتی با برد ۲۸٪ فقط ×۰٫۸۹ می‌داد — جریمهٔ ناکافی برای
+  //  استراتژیِ زیان‌ده؛ حالا امتیاز استراتژی بد واقعاً بریده می‌شود)
   const trust: Record<string, number> = {}
   const trustFa: string[] = []
   for (const [st, t] of strat) {
     if (t.n < MIN_SAMPLES_PER_STRATEGY) continue
     const wr = (t.wins + 1) / (t.n + 2)
-    const mult = Math.max(0.75, Math.min(1.2, 0.75 + 0.5 * wr))
+    const mult = Math.max(0.65, Math.min(1.2, 0.5 + wr))
     trust[st] = Math.round(mult * 1000) / 1000
     trustFa.push(`${STRATEGY_FA[st] ?? st} ×${faNum(mult, 2)}`)
   }

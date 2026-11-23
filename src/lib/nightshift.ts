@@ -283,10 +283,11 @@ async function jobDataPrune(): Promise<string> {
   const now = Date.now()
   const d90 = new Date(now - 90 * 24 * 3600_000)
   const d365 = new Date(now - 365 * 24 * 3600_000)
+  const d1 = new Date(now - 24 * 3600_000)
   const d3 = new Date(now - 3 * 24 * 3600_000)
   const d30 = new Date(now - 30 * 24 * 3600_000)
   const d7 = new Date(now - 7 * 24 * 3600_000)
-  const [c15, c1h, tick, fund, log, sigOld, sigExp, bsOld, ordOld] = await Promise.all([
+  const [c15, c1h, tick, fund, log, sigOld, sigExp, sigStale, bsOld, ordOld] = await Promise.all([
     db.candle.deleteMany({ where: { interval: '15m', ts: { lt: d90 } } }),
     db.candle.deleteMany({ where: { interval: '1h', ts: { lt: d365 } } }),
     db.tickerSnapshot.deleteMany({ where: { ts: { lt: d3 } } }),
@@ -295,13 +296,16 @@ async function jobDataPrune(): Promise<string> {
     // بهینه‌سازی دیتابیس (2026-11-08): جدول‌هایی که تا دیروز هرگز پاک نمی‌شدند
     db.signal.deleteMany({ where: { status: { not: 'open' }, createdAt: { lt: d30 } } }), // سیگنال‌های بسته/منقضی/ثبت‌شدهٔ قدیمی
     db.signal.deleteMany({ where: { status: 'expired', createdAt: { lt: d7 } } }), // سیگنال منقضی خیلی سریع بی‌ارزش است
+    // اصلاح زبالهٔ داده (2026-11-23): registered/watchِ کهنه (>۲۴ ساعت) عملاً غیرقابل‌اجرا هستند
+    // (ربات فقط سیگنال تا ۸ ساعت را تعقیب می‌کند) — منقضی می‌شوند تا فهرست زندهٔ رادار آلوده نشود
+    db.signal.updateMany({ where: { status: { in: ['registered', 'watch'] }, createdAt: { lt: d1 } }, data: { status: 'expired' } }),
     db.brainSample.deleteMany({ where: { evaluatedAt: { not: null }, createdAt: { lt: d90 } } }), // نمونه‌های آموزشی قدیمی (پنجرهٔ آموزش ۳۰۰۰ نمونهٔ آخر است)
     db.fundOrder.deleteMany({ where: { createdAt: { lt: d90 } } }), // دفتر سفارش‌های قدیمی
   ])
   // نمودار سرمایه: فقط ۲۰۰۰ نقطهٔ اخیر نگه داشته می‌شود
   const eqKeep = await db.equityPoint.findFirst({ orderBy: { id: 'desc' }, skip: 2000, select: { id: true } })
   const eq = eqKeep ? await db.equityPoint.deleteMany({ where: { id: { lt: eqKeep.id } } }) : { count: 0 }
-  return `پاک‌سازی: کندل ۱۵m=${c15.count}، ۱h=${c1h.count}، تیکر=${tick.count}، فاندینگ=${fund.count}، لاگ=${log.count}، سیگنال‌کهنه=${sigOld.count + sigExp.count}، نمونهٔ مغز=${bsOld.count}، سفارش=${ordOld.count}، نمودار=${eq.count}`
+  return `پاک‌سازی: کندل ۱۵m=${c15.count}، ۱h=${c1h.count}، تیکر=${tick.count}، فاندینگ=${fund.count}، لاگ=${log.count}، سیگنال‌کهنه=${sigOld.count + sigExp.count}، سیگنال‌غیرقابل‌اجرا=${sigStale.count}، نمونهٔ مغز=${bsOld.count}، سفارش=${ordOld.count}، نمودار=${eq.count}`
 }
 
 async function jobBotTrade(): Promise<string> {

@@ -5,7 +5,7 @@ import { isAbsolute, join } from 'node:path'
 import { db } from '@/lib/db'
 import { getSetting, setSetting, getRiskConfig, getBotConfig } from '@/lib/settings'
 import { refreshUniverse } from '@/lib/universe'
-import { BOT_PREFIX } from '@/lib/autotrader'
+import { BOT_PREFIX, LEARN_TAG } from '@/lib/autotrader'
 import { faNum } from '@/lib/fa'
 
 // ─── Autonomy Layer (لایهٔ خودکار) ───
@@ -38,6 +38,11 @@ const DB_VACUUM_MB = 40 // vacuum threshold
 const TUNE_MIN_SAMPLES = 10 // bot trades in 14d before risk tuning engages
 const RISK_MAX = 7
 const RISK_MIN = 2
+// اصلاح جغجغهٔ یک‌طرفه (2026-11-23): قبلاً آستانه فقط +۵ می‌شد (تا ۹۰) و هرگز برنگشت —
+// ربات در ۹۰ گیر می‌کرد و دیگر معاملهٔ واقعی (منبع یادگیری) نمی‌ساخت. الان متقارن است:
+// بد → بالاتر (سقف ۸۰)، خوب → پایین‌تر (کف ۷۰)، بدون معاملهٔ واقعی → به کف نزدیک می‌شود.
+const MIN_SCORE_FLOOR = 70 // هم‌راستا با TRUST_SCORE_FLOOR در autotrader
+const MIN_SCORE_CEIL = 80 // ۹۰ عملاً «هرگز معامله نکن» بود — سقف منطقی ۸۰
 
 function parseSnap<T>(raw: string | null): Partial<T> {
   if (!raw) return {}
@@ -335,10 +340,19 @@ export async function runSelfOptimize(): Promise<string> {
 
   // adaptive risk (self-growth): tune risk & entry threshold from the bot's own
   // closed trades of the last 14 days — reinforce what works, restrain what doesn't.
+  // معاملات یادگیری (نصف ریسک، زیر آستانهٔ اصلی) در نمونهٔ تنظیم شمرده نمی‌شوند —
+  // آن‌ها عمداً زیر آستانه باز می‌شوند و نرخ بردشان معیار کیفیت استراتژی نیست.
   const since14 = new Date(Date.now() - 14 * 24 * 3600_000)
   const closed = await db.fundPosition.findMany({
-    where: { status: 'closed', reasonFa: { startsWith: BOT_PREFIX }, closedAt: { gte: since14 } },
+    where: {
+      status: 'closed',
+      closedAt: { gte: since14 },
+      reasonFa: { startsWith: BOT_PREFIX, not: { contains: LEARN_TAG } },
+    },
     select: { pnlUsdt: true },
+  })
+  const learnCount = await db.fundPosition.count({
+    where: { status: 'closed', closedAt: { gte: since14 }, reasonFa: { startsWith: BOT_PREFIX, contains: LEARN_TAG } },
   })
   const [risk, botCfg] = await Promise.all([getRiskConfig(), getBotConfig()])
   const n = closed.length
@@ -350,23 +364,35 @@ export async function runSelfOptimize(): Promise<string> {
 
   let riskAfter = risk.riskPerTradePct
   let minScoreAfter = botCfg.minScore
+  const minScoreBefore = minScoreAfter
   let tuned = false
   let actionFa: string
   if (n >= TUNE_MIN_SAMPLES) {
-    if (winRate >= 0.55 && pf >= 1.2 && riskAfter < RISK_MAX) {
-      riskAfter = Math.min(RISK_MAX, riskAfter + 0.5)
-      tuned = true
-      actionFa = `عملکرد خوب (برد ${faNum(winRate * 100, 0)}٪) — ریسک هر معامله از ${faNum(risk.riskPerTradePct, 1)} به ${faNum(riskAfter, 1)}٪ افزایش یافت (رشد)`
+    if (winRate >= 0.55 && pf >= 1.2) {
+      if (riskAfter < RISK_MAX) riskAfter = Math.min(RISK_MAX, riskAfter + 0.5)
+      if (minScoreAfter > MIN_SCORE_FLOOR) {
+        minScoreAfter = Math.max(MIN_SCORE_FLOOR, minScoreAfter - 5)
+        tuned = true
+      }
+      actionFa = `عملکرد خوب (برد ${faNum(winRate * 100, 0)}٪، ضریب سود ${faNum(pf, 2)}) — ریسک به ${faNum(riskAfter, 1)}٪ و حداقل امتیاز ورود به ${faNum(minScoreAfter, 0)} بهبود یافت (رشد کنترل‌شده)`
     } else if (winRate < 0.4 || pf < 0.7) {
-      riskAfter = Math.max(RISK_MIN, riskAfter - 1)
-      minScoreAfter = Math.min(90, minScoreAfter + 5)
-      tuned = true
-      actionFa = `عملکرد ضعیف (برد ${faNum(winRate * 100, 0)}٪) — ریسک به ${faNum(riskAfter, 1)}٪ کاهش و حداقل امتیاز ورود به ${faNum(minScoreAfter, 0)} سخت‌گیرانه‌تر شد (حفظ سرمایه)`
+      if (riskAfter > RISK_MIN) riskAfter = Math.max(RISK_MIN, riskAfter - 1)
+      if (minScoreAfter < MIN_SCORE_CEIL) {
+        minScoreAfter = Math.min(MIN_SCORE_CEIL, minScoreAfter + 5)
+        tuned = true
+      }
+      actionFa = `عملکرد ضعیف (برد ${faNum(winRate * 100, 0)}٪) — ریسک به ${faNum(riskAfter, 1)}٪ کاهش و حداقل امتیاز ورود به ${faNum(minScoreAfter, 0)} سخت‌گیرانه‌تر شد (حفظ سرمایه؛ سقف ۸۰ تا ربات کاملاً از رده خارج نشود)`
     } else {
       actionFa = `عملکرد متعادل (برد ${faNum(winRate * 100, 0)}٪، ضریب سود ${faNum(pf, 2)}) — پارامترها بدون تغییر`
     }
+  } else if (n === 0 && minScoreAfter > MIN_SCORE_FLOOR) {
+    // هیچ معاملهٔ واقعی در ۱۴ روز (مثلاً آستانهٔ گیرکرده) — آستانه به کف بازگردد تا فرصت واقعی ببینیم؛
+    // دروازه‌های ایمن فاندامنتال/RSI/ATR/فاندینگ همچنان کامل اعمال می‌شوند و یادگیری با ریسک نصف ادامه دارد.
+    minScoreAfter = Math.max(MIN_SCORE_FLOOR, minScoreAfter - 5)
+    tuned = true
+    actionFa = `معاملهٔ واقعی در ۱۴ روز نداشتیم (${faNum(learnCount, 0)} معاملهٔ یادگیری جدا شمرده شد) — حداقل امتیاز ورود از ${faNum(minScoreBefore, 0)} به ${faNum(minScoreAfter, 0)} ملایم شد تا سیگنال واقعی هم فرصت عبور داشته باشد`
   } else {
-    actionFa = `نمونهٔ کافی برای تنظیم خودکار نیست (${faNum(n, 0)} از ${faNum(TUNE_MIN_SAMPLES, 0)} معاملهٔ ربات در ۱۴ روز)`
+    actionFa = `نمونهٔ کافی برای تنظیم خودکار نیست (${faNum(n, 0)} از ${faNum(TUNE_MIN_SAMPLES, 0)} معاملهٔ واقعی ربات در ۱۴ روز)`
   }
   if (tuned) {
     await setSetting('riskPerTradePct', String(riskAfter))
@@ -382,8 +408,10 @@ export async function runSelfOptimize(): Promise<string> {
       integrity: integrityFa,
       riskBefore: risk.riskPerTradePct,
       riskAfter,
+      minScoreBefore,
       minScoreAfter,
       samples: n,
+      learningSamples: learnCount,
       winRate,
       action: actionFa,
     }),
